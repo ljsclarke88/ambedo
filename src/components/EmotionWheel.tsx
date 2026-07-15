@@ -1,4 +1,5 @@
 import React, { useState, useRef, useCallback } from 'react';
+import { motion } from 'framer-motion';
 import { EMOTIONS, DYADS, IntensityLevel } from '../data/emotions';
 
 // Ring-centre radii normalised to outer wheel edge (r = 220)
@@ -7,6 +8,7 @@ const RING_R = { high: 0.364, mid: 0.614, low: 0.875 } as const;
 interface EmotionWheelProps {
   onSelect: (angleDeg: number, radius: number) => void;
   selected: { emotionId: string; intensity: IntensityLevel } | null;
+  indicatorPos: { angleDeg: number; radius: number } | null;
 }
 
 function polarToCartesian(cx: number, cy: number, r: number, angleDeg: number) {
@@ -27,7 +29,7 @@ function textArcPosition(cx: number, cy: number, r: number, angleDeg: number) {
   return polarToCartesian(cx, cy, r, angleDeg);
 }
 
-export default function EmotionWheel({ onSelect, selected }: EmotionWheelProps) {
+export default function EmotionWheel({ onSelect, selected, indicatorPos }: EmotionWheelProps) {
   const [hovered, setHovered] = useState<{ emotionId: string; intensity: IntensityLevel } | null>(null);
   const svgRef   = useRef<SVGSVGElement>(null);
   const dragging = useRef(false);
@@ -297,6 +299,40 @@ export default function EmotionWheel({ onSelect, selected }: EmotionWheelProps) 
             />
           );
         })}
+
+        {/* Animated indicator dot — follows (angleDeg, radius) of the selection */}
+        {indicatorPos && (() => {
+          const rad  = (indicatorPos.angleDeg - 90) * (Math.PI / 180);
+          const ix   = cx + indicatorPos.radius * 220 * Math.cos(rad);
+          const iy   = cy + indicatorPos.radius * 220 * Math.sin(rad);
+          return (
+            <g style={{ pointerEvents: 'none' }}>
+              {/* Outer pulse ring */}
+              <motion.circle
+                cx={ix} cy={iy} r={12}
+                fill="none"
+                stroke="rgba(255,255,255,0.25)"
+                strokeWidth={1}
+                animate={{ cx: ix, cy: iy, r: [10, 14, 10] }}
+                transition={{
+                  cx: { type: 'spring', stiffness: 220, damping: 28 },
+                  cy: { type: 'spring', stiffness: 220, damping: 28 },
+                  r:  { duration: 1.8, repeat: Infinity, ease: 'easeInOut' },
+                }}
+              />
+              {/* Inner dot */}
+              <motion.circle
+                cx={ix} cy={iy} r={5}
+                fill="rgba(255,255,255,0.9)"
+                stroke="rgba(255,255,255,0.4)"
+                strokeWidth={1.5}
+                animate={{ cx: ix, cy: iy }}
+                transition={{ type: 'spring', stiffness: 220, damping: 28 }}
+                style={{ filter: 'drop-shadow(0 0 4px rgba(255,255,255,0.5))' }}
+              />
+            </g>
+          );
+        })()}
       </svg>
 
       {/* Tooltip below wheel */}

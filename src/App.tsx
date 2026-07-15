@@ -3,17 +3,21 @@ import { AnimatePresence } from 'framer-motion';
 import { EMOTIONS, IntensityLevel, EmotionVariant } from './data/emotions';
 import { coordinateToBlend, blendToAffect, BlendEntry, AffectVector } from './lib/mappings';
 import EmotionWheel from './components/EmotionWheel';
+import EmotionSearch from './components/EmotionSearch';
 import PalettePanel from './components/PalettePanel';
 import InfoPanel from './components/InfoPanel';
 
 interface SelectedState {
+  // Raw polar coordinates — drives the animated indicator dot
+  angleDeg: number;
+  radius: number;
   // Wheel highlight — derived from the dominant blend entry
   emotionId: string;
   intensity: IntensityLevel;
   // Palette inputs — constructed from blended affect
   variant: EmotionVariant;
   baseHue: number;
-  // Full blend data — available to future palette panels
+  // Full blend data — used by the palette panel for multi-stop gradient etc.
   blend: BlendEntry[];
   affect: AffectVector;
 }
@@ -31,7 +35,6 @@ export default function App() {
     const intensity: IntensityLevel =
       top.intensity === 'dyad' ? 'mid' : top.intensity;
 
-    // Derive the parent emotion for the wheel highlight
     const parentEmotion = EMOTIONS.find((e) => e.id === top.sourceId);
     const emotionId = parentEmotion?.id ?? top.sourceId;
 
@@ -42,7 +45,7 @@ export default function App() {
       dominance: affect.dominance,
     };
 
-    setSelected({ emotionId, intensity, variant, baseHue: affect.hue, blend, affect });
+    setSelected({ angleDeg, radius, emotionId, intensity, variant, baseHue: affect.hue, blend, affect });
   };
 
   return (
@@ -94,14 +97,11 @@ export default function App() {
       {/* Main content: wheel + palette panel */}
       <main
         className="flex flex-col lg:flex-row"
-        style={{
-          flex: 1,
-          gap: '0',
-          overflow: 'hidden',
-        }}
+        style={{ flex: 1, gap: '0', overflow: 'hidden' }}
       >
-        {/* Left/top: Emotion Wheel */}
+        {/* Left/top: wheel + search */}
         <div
+          className="lg:w-[50%]"
           style={{
             display: 'flex',
             flexDirection: 'column',
@@ -109,8 +109,8 @@ export default function App() {
             justifyContent: 'center',
             padding: '24px 24px 16px',
             flexShrink: 0,
+            gap: '12px',
           }}
-          className="lg:w-[50%]"
         >
           <EmotionWheel
             onSelect={handleSelect}
@@ -119,18 +119,24 @@ export default function App() {
                 ? { emotionId: selected.emotionId, intensity: selected.intensity }
                 : null
             }
+            indicatorPos={
+              selected ? { angleDeg: selected.angleDeg, radius: selected.radius } : null
+            }
           />
+
+          {/* Lexicon search */}
+          <EmotionSearch onSelect={handleSelect} />
         </div>
 
         {/* Right/bottom: Palette Panel */}
         <div
+          className="lg:w-[50%]"
           style={{
             flex: 1,
             padding: '24px 24px 16px',
             display: 'flex',
             flexDirection: 'column',
           }}
-          className="lg:w-[50%]"
         >
           <PalettePanel
             emotionId={selected?.emotionId ?? null}
