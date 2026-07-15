@@ -1,15 +1,21 @@
 import React, { useState } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { EMOTIONS, IntensityLevel, EmotionVariant } from './data/emotions';
+import { coordinateToBlend, blendToAffect, BlendEntry, AffectVector } from './lib/mappings';
 import EmotionWheel from './components/EmotionWheel';
 import PalettePanel from './components/PalettePanel';
 import InfoPanel from './components/InfoPanel';
 
 interface SelectedState {
+  // Wheel highlight — derived from the dominant blend entry
   emotionId: string;
   intensity: IntensityLevel;
+  // Palette inputs — constructed from blended affect
   variant: EmotionVariant;
   baseHue: number;
+  // Full blend data — available to future palette panels
+  blend: BlendEntry[];
+  affect: AffectVector;
 }
 
 export default function App() {
@@ -17,15 +23,26 @@ export default function App() {
   const [muted, setMuted] = useState(true);
   const [showInfo, setShowInfo] = useState(true);
 
-  const handleSelect = (emotionId: string, intensity: IntensityLevel, variant: EmotionVariant) => {
-    const emotion = EMOTIONS.find((e) => e.id === emotionId);
-    if (!emotion) return;
-    setSelected({
-      emotionId,
-      intensity,
-      variant,
-      baseHue: emotion.hue,
-    });
+  const handleSelect = (angleDeg: number, radius: number) => {
+    const blend = coordinateToBlend(angleDeg, radius);
+    const affect = blendToAffect(blend);
+    const top = blend[0].node;
+
+    const intensity: IntensityLevel =
+      top.intensity === 'dyad' ? 'mid' : top.intensity;
+
+    // Derive the parent emotion for the wheel highlight
+    const parentEmotion = EMOTIONS.find((e) => e.id === top.sourceId);
+    const emotionId = parentEmotion?.id ?? top.sourceId;
+
+    const variant: EmotionVariant = {
+      label: top.label,
+      valence: affect.valence,
+      arousal: affect.arousal,
+      dominance: affect.dominance,
+    };
+
+    setSelected({ emotionId, intensity, variant, baseHue: affect.hue, blend, affect });
   };
 
   return (

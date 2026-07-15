@@ -1,8 +1,11 @@
 import React, { useState } from 'react';
-import { EMOTIONS, DYADS, IntensityLevel, EmotionVariant } from '../data/emotions';
+import { EMOTIONS, DYADS, IntensityLevel } from '../data/emotions';
+
+// Ring-centre radii normalised to outer wheel edge (r = 220)
+const RING_R = { high: 0.364, mid: 0.614, low: 0.875 } as const;
 
 interface EmotionWheelProps {
-  onSelect: (emotionId: string, intensity: IntensityLevel, variant: EmotionVariant) => void;
+  onSelect: (angleDeg: number, radius: number) => void;
   selected: { emotionId: string; intensity: IntensityLevel } | null;
 }
 
@@ -30,15 +33,15 @@ export default function EmotionWheel({ onSelect, selected }: EmotionWheelProps) 
   const cx = 250;
   const cy = 250;
 
-  // Ring radii
-  const innerR1 = 55;   // center hole
-  const innerR2 = 105;  // high intensity inner ring
+  // Pixel ring radii
+  const innerR1 = 55;
+  const innerR2 = 105;
   const midR1 = 105;
-  const midR2 = 165;    // mid ring
+  const midR2 = 165;
   const outerR1 = 165;
-  const outerR2 = 220;  // outer / low intensity
+  const outerR2 = 220;
   const dyadR1 = 220;
-  const dyadR2 = 242;   // dyad wedge markers
+  const dyadR2 = 242;
 
   const getHoveredLabel = () => {
     if (hovered) {
@@ -84,7 +87,7 @@ export default function EmotionWheel({ onSelect, selected }: EmotionWheelProps) 
                 stroke={sel ? 'white' : 'rgba(13,13,15,0.6)'}
                 strokeWidth={sel ? 2 : 0.8}
                 cursor="pointer"
-                onClick={() => onSelect(emotion.id, 'low', emotion.low)}
+                onClick={() => onSelect(emotion.angle, RING_R.low)}
                 onMouseEnter={() => setHovered({ emotionId: emotion.id, intensity: 'low' })}
                 onMouseLeave={() => setHovered(null)}
               />
@@ -123,7 +126,7 @@ export default function EmotionWheel({ onSelect, selected }: EmotionWheelProps) 
                 stroke={sel ? 'white' : 'rgba(13,13,15,0.6)'}
                 strokeWidth={sel ? 2 : 0.8}
                 cursor="pointer"
-                onClick={() => onSelect(emotion.id, 'mid', emotion.mid)}
+                onClick={() => onSelect(emotion.angle, RING_R.mid)}
                 onMouseEnter={() => setHovered({ emotionId: emotion.id, intensity: 'mid' })}
                 onMouseLeave={() => setHovered(null)}
               />
@@ -163,7 +166,7 @@ export default function EmotionWheel({ onSelect, selected }: EmotionWheelProps) 
                 stroke={sel ? 'white' : 'rgba(13,13,15,0.6)'}
                 strokeWidth={sel ? 2 : 0.8}
                 cursor="pointer"
-                onClick={() => onSelect(emotion.id, 'high', emotion.high)}
+                onClick={() => onSelect(emotion.angle, RING_R.high)}
                 onMouseEnter={() => setHovered({ emotionId: emotion.id, intensity: 'high' })}
                 onMouseLeave={() => setHovered(null)}
               />
