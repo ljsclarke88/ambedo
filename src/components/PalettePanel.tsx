@@ -31,11 +31,12 @@ export default function PalettePanel({
 }: PalettePanelProps) {
   const { play } = useAudioSynth();
 
-  const colorData = variant ? emotionToColor(variant.valence, variant.arousal, baseHue) : null;
-  const soundData = variant ? emotionToSound(variant.valence, variant.arousal) : null;
-  const tasteData = variant ? emotionToTaste(variant.valence, variant.arousal) : null;
-  const geoData = variant ? emotionToGeometry(variant.valence, variant.arousal) : null;
-  const motionData = variant ? emotionToMotion(variant.valence, variant.arousal) : null;
+  const d = variant?.dominance ?? 0.5;
+  const colorData = variant ? emotionToColor(variant.valence, variant.arousal, baseHue, d) : null;
+  const soundData = variant ? emotionToSound(variant.valence, variant.arousal, d) : null;
+  const tasteData = variant ? emotionToTaste(variant.valence, variant.arousal, d) : null;
+  const geoData = variant ? emotionToGeometry(variant.valence, variant.arousal, d) : null;
+  const motionData = variant ? emotionToMotion(variant.valence, variant.arousal, d) : null;
 
   useEffect(() => {
     if (variant && soundData && !muted) {
@@ -145,7 +146,7 @@ export default function PalettePanel({
           </button>
         </div>
 
-        {/* Valence/arousal readout */}
+        {/* Valence / arousal / dominance readout */}
         <div
           style={{
             position: 'absolute',
@@ -161,6 +162,7 @@ export default function PalettePanel({
         >
           <div>&#8596; {sign}{variant.valence.toFixed(2)}</div>
           <div>&#8593; {variant.arousal.toFixed(2)}</div>
+          <div>&#8644; {variant.dominance.toFixed(2)}</div>
         </div>
 
         {/* Central MorphShape */}
@@ -229,7 +231,7 @@ export default function PalettePanel({
                 letterSpacing: '0.1em',
               }}
             >
-              {tasteData.icon} {tasteData.descriptor}
+              {tasteData.icon} {tasteData.intensity !== 'moderate' ? `${tasteData.intensity} ` : ''}{tasteData.descriptor}
             </span>
           </div>
 
