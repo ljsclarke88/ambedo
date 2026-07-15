@@ -139,6 +139,8 @@ export default function App() {
             baseHue={selected?.baseHue ?? 0}
             muted={muted}
             onToggleMute={() => setMuted((m) => !m)}
+            blend={selected?.blend ?? null}
+            affect={selected?.affect ?? null}
           />
         </div>
       </main>

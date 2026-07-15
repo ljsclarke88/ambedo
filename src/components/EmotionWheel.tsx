@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import { EMOTIONS, DYADS, IntensityLevel } from '../data/emotions';
 
 // Ring-centre radii normalised to outer wheel edge (r = 220)
@@ -29,9 +29,46 @@ function textArcPosition(cx: number, cy: number, r: number, angleDeg: number) {
 
 export default function EmotionWheel({ onSelect, selected }: EmotionWheelProps) {
   const [hovered, setHovered] = useState<{ emotionId: string; intensity: IntensityLevel } | null>(null);
+  const svgRef   = useRef<SVGSVGElement>(null);
+  const dragging = useRef(false);
 
   const cx = 250;
   const cy = 250;
+
+  const pointerToAngleRadius = useCallback((e: React.PointerEvent<SVGSVGElement>) => {
+    const svg = svgRef.current;
+    if (!svg) return null;
+    const rect   = svg.getBoundingClientRect();
+    const scaleX = 500 / rect.width;
+    const scaleY = 500 / rect.height;
+    const svgX   = (e.clientX - rect.left)  * scaleX;
+    const svgY   = (e.clientY - rect.top)   * scaleY;
+    const dx = svgX - cx;
+    const dy = svgY - cy;
+    const pxR = Math.sqrt(dx * dx + dy * dy);
+    if (pxR < 20) return null;   // ignore the neutral centre
+    const normR = Math.min(1.0, pxR / 220);
+    // atan2 returns standard math angle; convert to wheel convention: wheelDeg = mathDeg + 90
+    const angleDeg = Math.atan2(dy, dx) * (180 / Math.PI) + 90;
+    return { angleDeg, radius: normR };
+  }, []);
+
+  const handlePointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
+    dragging.current = true;
+    (e.currentTarget as SVGSVGElement).setPointerCapture(e.pointerId);
+    const pos = pointerToAngleRadius(e);
+    if (pos) onSelect(pos.angleDeg, pos.radius);
+  };
+
+  const handlePointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
+    if (!dragging.current) return;
+    const pos = pointerToAngleRadius(e);
+    if (pos) onSelect(pos.angleDeg, pos.radius);
+  };
+
+  const handlePointerUp = () => {
+    dragging.current = false;
+  };
 
   // Pixel ring radii
   const innerR1 = 55;
@@ -63,10 +100,15 @@ export default function EmotionWheel({ onSelect, selected }: EmotionWheelProps) 
   return (
     <div className="flex flex-col items-center select-none">
       <svg
+        ref={svgRef}
         viewBox="0 0 500 500"
         width="500"
         height="500"
-        style={{ maxWidth: '100%', maxHeight: '100%' }}
+        style={{ maxWidth: '100%', maxHeight: '100%', cursor: 'crosshair', touchAction: 'none' }}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerLeave={handlePointerUp}
       >
         {/* Outer ring segments (low intensity) */}
         {EMOTIONS.map((emotion) => {
