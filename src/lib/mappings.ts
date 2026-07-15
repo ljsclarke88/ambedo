@@ -1,3 +1,71 @@
+import { EMOTION_NODES, EmotionNode } from '../data/emotions';
+
+// ---------------------------------------------------------------------------
+// Blend engine — converts a polar click position to a weighted mixture of
+// emotion nodes using inverse-distance weighting (IDW, power=2) in Cartesian
+// space, then normalises to sum = 1.0.
+// ---------------------------------------------------------------------------
+
+export interface BlendEntry {
+  node: EmotionNode;
+  weight: number;  // 0–1; all entries sum to 1
+}
+
+export interface AffectVector {
+  valence: number;
+  arousal: number;
+  dominance: number;
+  hue: number;   // 0–360, circular weighted mean
+}
+
+function polarToXY(angleDeg: number, radius: number): [number, number] {
+  const rad = (angleDeg - 90) * (Math.PI / 180);
+  return [radius * Math.cos(rad), radius * Math.sin(rad)];
+}
+
+export function coordinateToBlend(angleDeg: number, radius: number): BlendEntry[] {
+  const [cx, cy] = polarToXY(angleDeg, radius);
+  const EPSILON = 1e-6;
+
+  const raw = EMOTION_NODES.map((node) => {
+    const [nx, ny] = polarToXY(node.angle, node.radius);
+    const d2 = (cx - nx) ** 2 + (cy - ny) ** 2;
+    return { node, w: 1 / (d2 + EPSILON) };
+  });
+
+  const total = raw.reduce((sum, e) => sum + e.w, 0);
+
+  return raw
+    .map(({ node, w }) => ({ node, weight: w / total }))
+    .sort((a, b) => b.weight - a.weight);
+}
+
+// Reduces a BlendEntry[] to a single weighted-average affect vector.
+// Hue is computed via circular mean to handle the 0/360 wrap-around.
+export function blendToAffect(blend: BlendEntry[]): AffectVector {
+  let valence = 0;
+  let arousal = 0;
+  let dominance = 0;
+  let sinSum = 0;
+  let cosSum = 0;
+
+  for (const { node, weight } of blend) {
+    valence   += weight * node.valence;
+    arousal   += weight * node.arousal;
+    dominance += weight * node.dominance;
+    const hRad = (node.hue * Math.PI) / 180;
+    sinSum += weight * Math.sin(hRad);
+    cosSum += weight * Math.cos(hRad);
+  }
+
+  let hue = (Math.atan2(sinSum, cosSum) * 180) / Math.PI;
+  if (hue < 0) hue += 360;
+
+  return { valence, arousal, dominance, hue: Math.round(hue) };
+}
+
+// ---------------------------------------------------------------------------
+
 export function emotionToColor(
   valence: number,
   arousal: number,
