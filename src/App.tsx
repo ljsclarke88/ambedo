@@ -26,6 +26,8 @@ export default function App() {
   const [selected, setSelected] = useState<SelectedState | null>(null);
   const [muted, setMuted] = useState(true);
   const [showInfo, setShowInfo] = useState(true);
+  // Stores the position before a complement jump so we can toggle back
+  const [origin, setOrigin] = useState<{ angleDeg: number; radius: number } | null>(null);
 
   const handleSelect = (angleDeg: number, radius: number) => {
     const blend = coordinateToBlend(angleDeg, radius);
@@ -46,6 +48,34 @@ export default function App() {
     };
 
     setSelected({ angleDeg, radius, emotionId, intensity, variant, baseHue: affect.hue, blend, affect });
+    setOrigin(null);  // any direct interaction clears the complement toggle
+  };
+
+  const handleComplement = () => {
+    if (!selected) return;
+    if (origin) {
+      // Toggle back to original
+      const { angleDeg, radius } = origin;
+      const blend = coordinateToBlend(angleDeg, radius);
+      const affect = blendToAffect(blend);
+      const top = blend[0].node;
+      const intensity: IntensityLevel = top.intensity === 'dyad' ? 'mid' : top.intensity;
+      const emotionId = EMOTIONS.find((e) => e.id === top.sourceId)?.id ?? top.sourceId;
+      const variant: EmotionVariant = { label: top.label, valence: affect.valence, arousal: affect.arousal, dominance: affect.dominance };
+      setSelected({ angleDeg, radius, emotionId, intensity, variant, baseHue: affect.hue, blend, affect });
+      setOrigin(null);
+    } else {
+      // Jump to complement (180° opposite, same radius)
+      setOrigin({ angleDeg: selected.angleDeg, radius: selected.radius });
+      const compAngle = selected.angleDeg + 180;
+      const blend = coordinateToBlend(compAngle, selected.radius);
+      const affect = blendToAffect(blend);
+      const top = blend[0].node;
+      const intensity: IntensityLevel = top.intensity === 'dyad' ? 'mid' : top.intensity;
+      const emotionId = EMOTIONS.find((e) => e.id === top.sourceId)?.id ?? top.sourceId;
+      const variant: EmotionVariant = { label: top.label, valence: affect.valence, arousal: affect.arousal, dominance: affect.dominance };
+      setSelected({ angleDeg: compAngle, radius: selected.radius, emotionId, intensity, variant, baseHue: affect.hue, blend, affect });
+    }
   };
 
   return (
@@ -122,10 +152,42 @@ export default function App() {
             indicatorPos={
               selected ? { angleDeg: selected.angleDeg, radius: selected.radius } : null
             }
+            complementPos={
+              selected && !origin
+                ? { angleDeg: selected.angleDeg + 180, radius: selected.radius }
+                : origin
+                  ? { angleDeg: origin.angleDeg, radius: origin.radius }
+                  : null
+            }
           />
 
-          {/* Lexicon search */}
-          <EmotionSearch onSelect={handleSelect} />
+          {/* Lexicon search + complement toggle */}
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', width: '100%', maxWidth: '300px', margin: '0 auto' }}>
+            <div style={{ flex: 1 }}>
+              <EmotionSearch onSelect={handleSelect} />
+            </div>
+            {selected && (
+              <button
+                onClick={handleComplement}
+                title={origin ? 'Return to original' : 'Navigate to complementary emotion'}
+                style={{
+                  flexShrink: 0,
+                  background: origin ? 'rgba(255,255,255,0.10)' : 'rgba(255,255,255,0.04)',
+                  border: '1px solid rgba(255,255,255,0.14)',
+                  borderRadius: '3px',
+                  padding: '7px 10px',
+                  color: 'rgba(232,228,222,0.65)',
+                  fontSize: '13px',
+                  cursor: 'pointer',
+                  lineHeight: 1,
+                  letterSpacing: '0.04em',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {origin ? '← back' : '↔'}
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Right/bottom: Palette Panel */}

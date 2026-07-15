@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { IntensityLevel, EmotionVariant } from '../data/emotions';
+import { IntensityLevel, EmotionVariant, EMOTIONS } from '../data/emotions';
 import { BlendEntry, AffectVector } from '../lib/mappings';
 import {
   emotionToColor,
@@ -13,6 +13,14 @@ import MorphShape from './MorphShape';
 import WaveformCanvas from './WaveformCanvas';
 import TasteRadar from './TasteRadar';
 import { useAudioSynth } from '../hooks/useAudioSynth';
+
+// Converts V/A/D scalars to a short categorical dossier string
+function padDossier(valence: number, arousal: number, dominance: number): string {
+  const v = valence  >  0.35 ? 'pleasant'    : valence  < -0.35 ? 'unpleasant' : 'ambivalent';
+  const a = arousal  >  0.60 ? 'energised'   : arousal  <  0.35 ? 'calm'       : 'moderate';
+  const d = dominance > 0.62 ? 'powerful'    : dominance < 0.38 ? 'submissive' : 'balanced';
+  return `${v} · ${a} · ${d}`;
+}
 
 interface PalettePanelProps {
   emotionId: string | null;
@@ -242,6 +250,28 @@ export default function PalettePanel({
           >
             {variant.label}
           </div>
+
+          {/* Mini-dossier: PAD category + primary emotion family */}
+          {(() => {
+            const family = EMOTIONS.find((e) => e.id === emotionId)?.label ?? '';
+            const dossier = padDossier(variant.valence, variant.arousal, variant.dominance);
+            return (
+              <div
+                style={{
+                  marginTop: '6px',
+                  fontFamily: "'Inter', sans-serif",
+                  fontWeight: 300,
+                  fontSize: '9px',
+                  letterSpacing: '0.12em',
+                  textTransform: 'uppercase',
+                  color: 'rgba(255,255,255,0.30)',
+                }}
+              >
+                {family && <span style={{ marginRight: '8px', color: 'rgba(255,255,255,0.22)' }}>{family}</span>}
+                {dossier}
+              </div>
+            );
+          })()}
 
           {/* Blend composition chips */}
           {topBlend.length > 1 && (

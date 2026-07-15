@@ -9,6 +9,7 @@ interface EmotionWheelProps {
   onSelect: (angleDeg: number, radius: number) => void;
   selected: { emotionId: string; intensity: IntensityLevel } | null;
   indicatorPos: { angleDeg: number; radius: number } | null;
+  complementPos: { angleDeg: number; radius: number } | null;
 }
 
 function polarToCartesian(cx: number, cy: number, r: number, angleDeg: number) {
@@ -29,7 +30,7 @@ function textArcPosition(cx: number, cy: number, r: number, angleDeg: number) {
   return polarToCartesian(cx, cy, r, angleDeg);
 }
 
-export default function EmotionWheel({ onSelect, selected, indicatorPos }: EmotionWheelProps) {
+export default function EmotionWheel({ onSelect, selected, indicatorPos, complementPos }: EmotionWheelProps) {
   const [hovered, setHovered] = useState<{ emotionId: string; intensity: IntensityLevel } | null>(null);
   const svgRef   = useRef<SVGSVGElement>(null);
   const dragging = useRef(false);
@@ -299,6 +300,32 @@ export default function EmotionWheel({ onSelect, selected, indicatorPos }: Emoti
             />
           );
         })}
+
+        {/* Ghost indicator — complement position (dimmer, no pulse) */}
+        {complementPos && (() => {
+          const rad = (complementPos.angleDeg - 90) * (Math.PI / 180);
+          const gx  = cx + complementPos.radius * 220 * Math.cos(rad);
+          const gy  = cy + complementPos.radius * 220 * Math.sin(rad);
+          return (
+            <g style={{ pointerEvents: 'none' }}>
+              <motion.circle
+                cx={gx} cy={gy} r={7}
+                fill="none"
+                stroke="rgba(255,255,255,0.28)"
+                strokeWidth={1.5}
+                strokeDasharray="3 3"
+                animate={{ cx: gx, cy: gy }}
+                transition={{ type: 'spring', stiffness: 220, damping: 28 }}
+              />
+              <motion.circle
+                cx={gx} cy={gy} r={3}
+                fill="rgba(255,255,255,0.35)"
+                animate={{ cx: gx, cy: gy }}
+                transition={{ type: 'spring', stiffness: 220, damping: 28 }}
+              />
+            </g>
+          );
+        })()}
 
         {/* Animated indicator dot — follows (angleDeg, radius) of the selection */}
         {indicatorPos && (() => {
