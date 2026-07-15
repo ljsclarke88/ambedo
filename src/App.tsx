@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { EMOTIONS, IntensityLevel, EmotionVariant } from './data/emotions';
 import { coordinateToBlend, blendToAffect, BlendEntry, AffectVector } from './lib/mappings';
@@ -77,6 +77,18 @@ export default function App() {
       setSelected({ angleDeg: compAngle, radius: selected.radius, emotionId, intensity, variant, baseHue: affect.hue, blend, affect });
     }
   };
+
+  // Space = toggle mute
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === ' ' && !(e.target instanceof HTMLInputElement)) {
+        e.preventDefault();
+        setMuted((m) => !m);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   return (
     <div

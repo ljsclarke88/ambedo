@@ -12,6 +12,7 @@ import {
 import MorphShape from './MorphShape';
 import WaveformCanvas from './WaveformCanvas';
 import TasteRadar from './TasteRadar';
+import TextureLayer from './TextureLayer';
 import { useAudioSynth } from '../hooks/useAudioSynth';
 
 // Converts V/A/D scalars to a short categorical dossier string
@@ -43,7 +44,7 @@ export default function PalettePanel({
   blend,
   affect,
 }: PalettePanelProps) {
-  const { play } = useAudioSynth();
+  const { play, sweep } = useAudioSynth();
 
   const d = variant?.dominance ?? 0.5;
   const colorData  = variant ? emotionToColor(variant.valence, variant.arousal, baseHue, d) : null;
@@ -53,9 +54,19 @@ export default function PalettePanel({
   const motionData = variant ? emotionToMotion(variant.valence, variant.arousal, d) : null;
 
   useEffect(() => {
-    if (variant && soundData && !muted) {
-      play(soundData.frequency, soundData.waveformType as OscillatorType, 2.5);
+    if (!variant || !soundData || muted) return;
+    // Use a frequency sweep when the blend spans a meaningful range (>80 Hz spread)
+    if (blend && blend.length >= 2) {
+      const sig  = blend.filter((e) => e.weight > 0.05);
+      const freqs = sig.map((e) => Math.round(110 + e.node.arousal * 770));
+      const lo = Math.min(...freqs);
+      const hi = Math.max(...freqs);
+      if (hi - lo > 80) {
+        sweep(lo, hi, soundData.waveformType as OscillatorType, 2.8);
+        return;
+      }
     }
+    play(soundData.frequency, soundData.waveformType as OscillatorType, 2.5);
   }, [variant?.label, muted]);
 
   // Multi-stop gradient from top blend entries
@@ -153,6 +164,13 @@ export default function PalettePanel({
           justifyContent: 'space-between',
         }}
       >
+        {/* Animated grain texture */}
+        <TextureLayer
+          hue={colorData.hue}
+          arousal={variant.arousal}
+          dominance={variant.dominance}
+        />
+
         {/* Dark overlay for text legibility */}
         <div
           style={{
