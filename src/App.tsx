@@ -1,11 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { EMOTIONS, IntensityLevel, EmotionVariant } from './data/emotions';
 import { coordinateToBlend, blendToAffect, BlendEntry, AffectVector } from './lib/mappings';
+import { derivePaletteRoles, deriveRadarData } from './lib/deckDerive';
 import EmotionWheel from './components/EmotionWheel';
 import EmotionSearch from './components/EmotionSearch';
 import PalettePanel from './components/PalettePanel';
 import InfoPanel from './components/InfoPanel';
+import EmotionalPaletteExport from './components/exports/EmotionalPaletteExport';
+import EmotionalMappingExport from './components/exports/EmotionalMappingExport';
+import SensoryTableExport from './components/exports/SensoryTableExport';
+import TitleCardExport from './components/exports/TitleCardExport';
+
+type ExportTab = 'palette' | 'mapping' | 'table' | 'title';
 
 interface SelectedState {
   // Raw polar coordinates — drives the animated indicator dot
@@ -28,6 +35,16 @@ export default function App() {
   const [showInfo, setShowInfo] = useState(true);
   // Stores the position before a complement jump so we can toggle back
   const [origin, setOrigin] = useState<{ angleDeg: number; radius: number } | null>(null);
+  const [exportTab, setExportTab] = useState<ExportTab | null>(null);
+
+  const paletteRoles = useMemo(
+    () => (selected ? derivePaletteRoles(selected.angleDeg, selected.radius, selected.blend) : null),
+    [selected]
+  );
+  const radarPoints = useMemo(
+    () => (selected ? deriveRadarData(selected.blend) : null),
+    [selected]
+  );
 
   const handleSelect = (angleDeg: number, radius: number) => {
     const blend = coordinateToBlend(angleDeg, radius);
@@ -134,12 +151,48 @@ export default function App() {
         >
           a crossmodal correspondence explorer
         </p>
+
+        {/* Deck export tabs */}
+        <nav style={{ display: 'flex', gap: '6px', marginTop: '14px', flexWrap: 'wrap' }}>
+          {(
+            [
+              { key: null, label: 'Explore' },
+              { key: 'palette', label: 'Emotional Palette' },
+              { key: 'mapping', label: 'Emotional Mapping' },
+              { key: 'table', label: 'Multisensory Map' },
+              { key: 'title', label: 'Title Card' },
+            ] as const
+          ).map((t) => (
+            <button
+              key={t.label}
+              onClick={() => setExportTab(t.key)}
+              style={{
+                background: exportTab === t.key ? 'rgba(255,255,255,0.10)' : 'transparent',
+                border: '1px solid rgba(255,255,255,0.12)',
+                borderRadius: '3px',
+                padding: '6px 12px',
+                color: exportTab === t.key ? 'rgba(232,228,222,0.9)' : 'rgba(232,228,222,0.45)',
+                fontFamily: "'Inter', sans-serif",
+                fontWeight: 400,
+                fontSize: '10px',
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+                cursor: 'pointer',
+              }}
+            >
+              {t.label}
+            </button>
+          ))}
+        </nav>
       </header>
 
-      {/* Main content: wheel + palette panel */}
+      {/* Main content: wheel + palette panel — kept mounted (display:none when
+          an export tab is active) so framer-motion's animated SVGs never get
+          torn down mid-transition, which otherwise throws stray console
+          errors from unmounted-but-still-animating circle/path elements. */}
       <main
         className="flex flex-col lg:flex-row"
-        style={{ flex: 1, gap: '0', overflow: 'hidden' }}
+        style={{ flex: 1, gap: '0', overflow: 'hidden', display: exportTab === null ? 'flex' : 'none' }}
       >
         {/* Left/top: wheel + search */}
         <div
@@ -224,6 +277,41 @@ export default function App() {
           />
         </div>
       </main>
+
+      {/* Deck export views */}
+      {exportTab !== null && (
+        <main style={{ flex: 1, overflow: 'auto', padding: '24px 32px 40px' }}>
+          {(exportTab === 'palette' || exportTab === 'mapping' || exportTab === 'table') && !selected && (
+            <div
+              style={{
+                fontFamily: "'Cormorant Garamond', serif",
+                fontStyle: 'italic',
+                fontWeight: 300,
+                fontSize: '18px',
+                color: 'rgba(232,228,222,0.4)',
+                textAlign: 'center',
+                marginTop: '80px',
+              }}
+            >
+              select an emotion on the wheel in Explore first, then come back here
+            </div>
+          )}
+
+          {exportTab === 'palette' && paletteRoles && (
+            <EmotionalPaletteExport panels={paletteRoles} />
+          )}
+
+          {exportTab === 'mapping' && radarPoints && (
+            <EmotionalMappingExport points={radarPoints} />
+          )}
+
+          {exportTab === 'table' && selected && (
+            <SensoryTableExport blend={selected.blend} />
+          )}
+
+          {exportTab === 'title' && <TitleCardExport />}
+        </main>
+      )}
 
       {/* Info panel at bottom */}
       <AnimatePresence>

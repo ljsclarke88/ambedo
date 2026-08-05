@@ -188,3 +188,96 @@ export function emotionToMotion(
   const oscillationFrequency = 0.3 + arousal * 2.2;
   return { duration, ease, oscillationAmplitude, oscillationFrequency };
 }
+
+// ---------------------------------------------------------------------------
+// Multisensory profile — sound/light/scent/touch/space descriptor pairs.
+// Emotions are first classified into one of six experiential zones (the
+// "emotional zones" referenced in the client's multisensory-map brief), then
+// each zone carries a fixed bank of sensory correspondences. This keeps the
+// table's language coherent (a zone reads the same across all five columns)
+// while still responding to wherever the user has actually pointed on the
+// wheel, rather than to a hardcoded emotion list.
+// ---------------------------------------------------------------------------
+
+export type SensoryZone = 'sublime' | 'discovery' | 'tension' | 'serenity' | 'gloom' | 'power';
+
+export interface SensoryPair {
+  title: string;
+  detail: string;
+}
+
+export interface SensoryProfile {
+  zone: SensoryZone;
+  sound: SensoryPair;
+  light: SensoryPair;
+  scent: SensoryPair;
+  touch: SensoryPair;
+  space: SensoryPair;
+}
+
+export function classifySensoryZone(
+  valence: number,
+  arousal: number,
+  dominance: number
+): SensoryZone {
+  if (arousal > 0.65 && dominance < 0.38) return 'sublime';
+  if (valence > 0.25 && arousal >= 0.32 && arousal <= 0.78) return 'discovery';
+  if (valence < -0.15 && arousal > 0.45) return 'tension';
+  if (arousal < 0.35 && valence >= -0.12) return 'serenity';
+  if (arousal < 0.35 && valence < -0.12) return 'gloom';
+  return 'power';
+}
+
+const SENSORY_BANK: Record<SensoryZone, Omit<SensoryProfile, 'zone'>> = {
+  sublime: {
+    sound: { title: 'Sub-bass drone', detail: '20–60 Hz, felt not heard' },
+    light: { title: 'Vast, singular', detail: 'low CCT, near-dark' },
+    scent: { title: 'Petrichor, stone', detail: 'ancient, mineral' },
+    touch: { title: 'Cold air, stillness', detail: 'temperature drop' },
+    space: { title: 'Vertical scale', detail: 'ceiling height critical' },
+  },
+  discovery: {
+    sound: { title: 'Delicate texture', detail: 'high-freq shimmer' },
+    light: { title: 'Dappled, moving', detail: 'warm gold, shifting' },
+    scent: { title: 'Neroli, fresh air', detail: 'citrus-floral' },
+    touch: { title: 'Smooth surfaces', detail: 'unexpected textures' },
+    space: { title: 'Discovery paths', detail: 'non-linear, revealed' },
+  },
+  tension: {
+    sound: { title: 'Silence, then pulse', detail: 'rhythm accelerates' },
+    light: { title: 'Narrowing, red-shift', detail: 'contrast increases' },
+    scent: { title: 'Smoke, metal', detail: 'sharp, bitter' },
+    touch: { title: 'Resistance, grip', detail: 'physical friction' },
+    space: { title: 'Compression', detail: 'low ceilings, narrows' },
+  },
+  serenity: {
+    sound: { title: 'Sustained pad', detail: 'slow attack, no percussion' },
+    light: { title: 'Even, diffuse', detail: 'high CCT, soft shadow' },
+    scent: { title: 'Linen, water', detail: 'clean, faint' },
+    touch: { title: 'Warm, yielding', detail: 'even pressure' },
+    space: { title: 'Open plan', detail: 'wide sightlines' },
+  },
+  gloom: {
+    sound: { title: 'Detuned low tone', detail: 'slow decay, hollow' },
+    light: { title: 'Flat, overcast', detail: 'desaturated, grey' },
+    scent: { title: 'Damp paper, dust', detail: 'musty, faint' },
+    touch: { title: 'Heavy, inert', detail: 'weight without give' },
+    space: { title: 'Recessed corners', detail: 'low light pooling' },
+  },
+  power: {
+    sound: { title: 'Struck impact', detail: 'fast attack, sharp decay' },
+    light: { title: 'Hard, directional', detail: 'high contrast beam' },
+    scent: { title: 'Leather, metal', detail: 'dense, assertive' },
+    touch: { title: 'Firm edges', detail: 'structured, angular' },
+    space: { title: 'Axial approach', detail: 'commanding sightline' },
+  },
+};
+
+export function emotionToSensoryProfile(
+  valence: number,
+  arousal: number,
+  dominance = 0.5
+): SensoryProfile {
+  const zone = classifySensoryZone(valence, arousal, dominance);
+  return { zone, ...SENSORY_BANK[zone] };
+}
