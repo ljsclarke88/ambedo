@@ -6,6 +6,7 @@ import {
   emotionToColor,
   emotionToSound,
   emotionToTaste,
+  emotionToScent,
   emotionToGeometry,
   emotionToMotion,
 } from '../lib/mappings';
@@ -13,7 +14,9 @@ import MorphShape from './MorphShape';
 import WaveformCanvas from './WaveformCanvas';
 import TasteRadar from './TasteRadar';
 import TextureLayer from './TextureLayer';
+import GeneratedTexture from './GeneratedTexture';
 import { useAudioSynth } from '../hooks/useAudioSynth';
+import { quantizeToScale } from '../lib/musicalScale';
 
 // Converts V/A/D scalars to a short categorical dossier string
 function padDossier(valence: number, arousal: number, dominance: number): string {
@@ -50,6 +53,7 @@ export default function PalettePanel({
   const colorData  = variant ? emotionToColor(variant.valence, variant.arousal, baseHue, d) : null;
   const soundData  = variant ? emotionToSound(variant.valence, variant.arousal, d) : null;
   const tasteData  = variant ? emotionToTaste(variant.valence, variant.arousal, d) : null;
+  const scentData  = variant ? emotionToScent(variant.valence, variant.arousal, d) : null;
   const geoData    = variant ? emotionToGeometry(variant.valence, variant.arousal, d) : null;
   const motionData = variant ? emotionToMotion(variant.valence, variant.arousal, d) : null;
 
@@ -58,15 +62,19 @@ export default function PalettePanel({
     // Use a frequency sweep when the blend spans a meaningful range (>80 Hz spread)
     if (blend && blend.length >= 2) {
       const sig  = blend.filter((e) => e.weight > 0.05);
-      const freqs = sig.map((e) => Math.round(110 + e.node.arousal * 770));
-      const lo = Math.min(...freqs);
-      const hi = Math.max(...freqs);
-      if (hi - lo > 80) {
-        sweep(lo, hi, soundData.waveformType as OscillatorType, 2.8);
+      const freqs = sig.map((e) => Math.round(110 + e.node.arousal * 770 - e.node.dominance * 40));
+      const loRaw = Math.min(...freqs);
+      const hiRaw = Math.max(...freqs);
+      if (hiRaw - loRaw > 80) {
+        // Quantise both ends onto the same key so the glide moves between
+        // two real notes rather than sweeping through raw, clashing Hz.
+        const lo = quantizeToScale(loRaw, variant.valence);
+        const hi = quantizeToScale(hiRaw, variant.valence);
+        sweep(lo, hi, soundData.waveformType as OscillatorType, soundData.harmonics, 2.8);
         return;
       }
     }
-    play(soundData.frequency, soundData.waveformType as OscillatorType, 2.5);
+    play(soundData.noteFrequency, soundData.waveformType as OscillatorType, soundData.harmonics, 2.5);
   }, [variant?.label, muted]);
 
   // Multi-stop gradient from top blend entries
@@ -83,6 +91,27 @@ export default function PalettePanel({
     });
     return `linear-gradient(135deg, ${stops.join(', ')})`;
   }, [blend, colorData, d]);
+
+  // Generated-texture layers — one per significant blend entry, each its own
+  // node's generated texture, stacked least-to-most significant (dominant
+  // on top) with opacity = weight. Near a node border this reads as a
+  // genuine composite of both neighbouring nodes' art, proportional to the
+  // actual blend percentages; a clean, unblended selection collapses back
+  // to a single full-opacity layer so it looks exactly as sharp as before.
+  const textureLayers = useMemo(() => {
+    if (!blend || blend.length === 0) return [];
+    const sig = blend.filter((e) => e.weight > 0.05).slice(0, 4);
+    const source = sig.length > 0 ? sig : blend.slice(0, 1);
+    const sorted = [...source].sort((a, b) => a.weight - b.weight);
+    return sorted.map((e, i) => ({
+      nodeId: e.node.id,
+      hue: e.node.hue,
+      valence: e.node.valence,
+      arousal: e.node.arousal,
+      dominance: e.node.dominance,
+      opacity: i === sorted.length - 1 && sorted.length === 1 ? 1 : e.weight,
+    }));
+  }, [blend]);
 
   // Frequency range across significant blend entries
   const freqRange = useMemo(() => {
@@ -109,7 +138,7 @@ export default function PalettePanel({
     ? `hsl(${colorData.hue}, ${colorData.saturation}%, ${colorData.lightness + 15}%)`
     : 'rgba(255,255,255,0.2)';
 
-  if (!variant || !colorData || !soundData || !tasteData || !geoData || !motionData) {
+  if (!variant || !colorData || !soundData || !tasteData || !scentData || !geoData || !motionData) {
     return (
       <div
         style={{
@@ -164,7 +193,38 @@ export default function PalettePanel({
           justifyContent: 'space-between',
         }}
       >
-        {/* Animated grain texture */}
+        {/* Generated background art — one layer per significant blend entry,
+            each its own node's science-derived texture, stacked and weighted
+            by the blend so border selections composite two nodes' art
+            together rather than snapping to one */}
+        {textureLayers.map((l) => (
+          <div key={l.nodeId} style={{ position: 'absolute', inset: 0, opacity: l.opacity }}>
+            <GeneratedTexture
+              nodeId={l.nodeId}
+              hue={l.hue}
+              valence={l.valence}
+              arousal={l.arousal}
+              dominance={l.dominance}
+            />
+          </div>
+        ))}
+
+        {/* Colour-mix tint — the same blend-weighted multi-stop gradient used
+            as the panel's base colour, layered on top of the texture art via
+            a 'color' blend mode so the mix proportions stay legible even
+            when one texture layer visually dominates the composite. */}
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background: backgroundGradient,
+            mixBlendMode: 'color',
+            opacity: 0.6,
+            pointerEvents: 'none',
+          }}
+        />
+
+        {/* Animated grain texture, layered on top for fine detail */}
         <TextureLayer
           hue={colorData.hue}
           arousal={variant.arousal}
@@ -222,13 +282,14 @@ export default function PalettePanel({
           <div>&#8644; {variant.dominance.toFixed(2)}</div>
         </div>
 
-        {/* Central MorphShape */}
+        {/* MorphShape indicator — moved off-center to the left so the
+            geodesic/ripple pattern it echoes has room to read across the panel */}
         <div
           style={{
             position: 'absolute',
-            top: '50%',
-            left: '50%',
-            transform: 'translate(-50%, -52%)',
+            top: '47%',
+            left: '20%',
+            transform: 'translate(-50%, -50%)',
             zIndex: 2,
             opacity: 0.82,
           }}
@@ -365,6 +426,47 @@ export default function PalettePanel({
           >
             {tasteData.note}
           </div>
+
+          {/* Scent descriptor */}
+          <div
+            style={{
+              marginTop: '10px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+            }}
+          >
+            <span
+              style={{
+                fontFamily: "'Inter', sans-serif",
+                fontWeight: 300,
+                fontSize: '13px',
+                color: 'rgba(255,255,255,0.55)',
+                letterSpacing: '0.1em',
+              }}
+            >
+              {scentData.icon}{' '}
+              {scentData.intensity !== 'moderate' ? `${scentData.intensity} ` : ''}
+              {scentData.descriptor}
+            </span>
+          </div>
+
+          <div
+            style={{
+              marginTop: '4px',
+              fontFamily: "'Inter', sans-serif",
+              fontWeight: 300,
+              fontSize: '10px',
+              color: 'rgba(255,255,255,0.32)',
+              letterSpacing: '0.06em',
+              maxWidth: '280px',
+              margin: '4px auto 0',
+              lineHeight: 1.5,
+            }}
+          >
+            {scentData.note}
+          </div>
         </div>
 
         {/* Taste radar — bottom left */}
@@ -395,7 +497,7 @@ export default function PalettePanel({
           }}
         >
           <WaveformCanvas
-            frequency={soundData.frequency}
+            frequency={soundData.noteFrequency}
             waveType={soundData.waveformType}
             color={waveColor}
             width={600}
@@ -421,7 +523,7 @@ export default function PalettePanel({
         >
           {freqRange
             ? <div>{freqRange.lo}–{freqRange.hi}Hz</div>
-            : <div>{soundData.frequency}Hz</div>}
+            : <div>{soundData.noteName} · {soundData.frequency}Hz</div>}
           <div>{soundData.waveformType}</div>
         </div>
       </motion.div>

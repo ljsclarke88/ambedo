@@ -1,4 +1,5 @@
 import { EMOTION_NODES, EmotionNode } from '../data/emotions';
+import { quantizeToScale, frequencyToNoteName } from './musicalScale';
 
 // ---------------------------------------------------------------------------
 // Blend engine — converts a polar click position to a weighted mixture of
@@ -71,7 +72,7 @@ export function emotionToColor(
   arousal: number,
   baseHue: number,
   dominance = 0.5
-): { hue: number; saturation: number; lightness: number; gradient: string } {
+): { hue: number; hue2: number; saturation: number; lightness: number; gradient: string } {
   const hue = baseHue;
   // High dominance → more saturated (assertive), low dominance → more muted
   const saturation = Math.min(92, Math.max(28, Math.round(28 + arousal * 52 + dominance * 16)));
@@ -79,21 +80,32 @@ export function emotionToColor(
   const lightness = Math.min(62, Math.max(20, Math.round(22 + ((valence + 1) / 2) * 38 - dominance * 5)));
   const hue2 = Math.round((hue + 20 + dominance * 15) % 360);
   const gradient = `linear-gradient(135deg, hsl(${hue}, ${saturation}%, ${lightness}%) 0%, hsl(${hue2}, ${Math.round(saturation * 0.8)}%, ${Math.round(lightness * 1.25)}%) 100%)`;
-  return { hue, saturation, lightness, gradient };
+  return { hue, hue2, saturation, lightness, gradient };
 }
 
 export function emotionToSound(
   valence: number,
   arousal: number,
   dominance = 0.5
-): { frequency: number; waveformType: 'sine' | 'triangle' | 'sawtooth'; harmonics: number } {
+): {
+  frequency: number;
+  noteFrequency: number;
+  noteName: string;
+  waveformType: 'sine' | 'triangle' | 'sawtooth';
+  harmonics: number;
+} {
   // High dominance → slightly deeper register (more imposing)
   const frequency = Math.round(110 + arousal * 770 - dominance * 40);
   const waveformType: 'sine' | 'triangle' | 'sawtooth' =
     valence > 0.3 ? 'sine' : valence > -0.3 ? 'triangle' : 'sawtooth';
   // High dominance → richer harmonic content
   const harmonics = Math.min(8, Math.round(1 + (1 - (valence + 1) / 2) * 5 + dominance * 2));
-  return { frequency, waveformType, harmonics };
+  // The raw frequency above is the scientific derivation (shown in the UI);
+  // noteFrequency snaps it onto a consonant scale so playback reads as
+  // musical rather than an arbitrary lab tone — see lib/musicalScale.ts.
+  const noteFrequency = Math.round(quantizeToScale(frequency, valence));
+  const noteName = frequencyToNoteName(noteFrequency);
+  return { frequency, noteFrequency, noteName, waveformType, harmonics };
 }
 
 export function emotionToTaste(
@@ -156,6 +168,70 @@ export function emotionToTaste(
     descriptor: 'neutral',
     icon: '□',
     note: 'at the valence-arousal centre, taste correspondences are diffuse',
+    intensity,
+  };
+}
+
+export function emotionToScent(
+  valence: number,
+  arousal: number,
+  dominance = 0.5
+): { descriptor: string; icon: string; note: string; intensity: 'bold' | 'moderate' | 'delicate' } {
+  const intensity: 'bold' | 'moderate' | 'delicate' =
+    dominance > 0.65 ? 'bold' : dominance < 0.38 ? 'delicate' : 'moderate';
+
+  if (arousal > 0.65 && valence > 0.2) {
+    return {
+      descriptor: 'citrus-floral',
+      icon: '✦',
+      note: 'bright top notes correlate with high arousal and positive valence',
+      intensity,
+    };
+  }
+  if (arousal > 0.65 && valence < -0.2) {
+    return {
+      descriptor: 'smoky, ozonic',
+      icon: '⟁',
+      note: 'sharp, ionised notes correlate with high arousal and negative valence',
+      intensity,
+    };
+  }
+  if (arousal < 0.35 && valence > 0) {
+    return {
+      descriptor: 'warm amber',
+      icon: '⬮',
+      note: 'low, warm base notes correlate with calm, positive states',
+      intensity,
+    };
+  }
+  if (arousal < 0.35 && valence < 0) {
+    return {
+      descriptor: 'damp, mineral',
+      icon: '▦',
+      note: 'cold, still notes correlate with low arousal and negative valence',
+      intensity,
+    };
+  }
+  if (valence > 0) {
+    return {
+      descriptor: 'green, herbal',
+      icon: '✢',
+      note: 'middle register: fresh-cut and verdant qualities',
+      intensity,
+    };
+  }
+  if (valence < 0) {
+    return {
+      descriptor: 'metallic, bitter',
+      icon: '✕',
+      note: 'middle register with negative valence: sharp and mineral',
+      intensity,
+    };
+  }
+  return {
+    descriptor: 'faint, ambiguous',
+    icon: '·',
+    note: 'at the valence-arousal centre, scent correspondences are diffuse',
     intensity,
   };
 }

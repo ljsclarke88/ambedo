@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { EMOTIONS, IntensityLevel, EmotionVariant } from './data/emotions';
-import { coordinateToBlend, blendToAffect, BlendEntry, AffectVector } from './lib/mappings';
-import { derivePaletteRoles, deriveRadarData } from './lib/deckDerive';
+import { coordinateToBlend, blendToAffect } from './lib/mappings';
+import { SelectionEntry } from './lib/deckDerive';
 import EmotionWheel from './components/EmotionWheel';
 import EmotionSearch from './components/EmotionSearch';
 import PalettePanel from './components/PalettePanel';
@@ -10,41 +10,38 @@ import InfoPanel from './components/InfoPanel';
 import EmotionalPaletteExport from './components/exports/EmotionalPaletteExport';
 import EmotionalMappingExport from './components/exports/EmotionalMappingExport';
 import SensoryTableExport from './components/exports/SensoryTableExport';
-import TitleCardExport from './components/exports/TitleCardExport';
+import SoundscapeExport from './components/exports/SoundscapeExport';
 
-type ExportTab = 'palette' | 'mapping' | 'table' | 'title';
+type ExportTab = 'palette' | 'mapping' | 'table' | 'soundscape';
 
-interface SelectedState {
-  // Raw polar coordinates — drives the animated indicator dot
-  angleDeg: number;
-  radius: number;
-  // Wheel highlight — derived from the dominant blend entry
-  emotionId: string;
-  intensity: IntensityLevel;
-  // Palette inputs — constructed from blended affect
-  variant: EmotionVariant;
-  baseHue: number;
-  // Full blend data — used by the palette panel for multi-stop gradient etc.
-  blend: BlendEntry[];
-  affect: AffectVector;
+const MAX_SELECTIONS = 8;
+const MIN_SELECTIONS = 1;
+
+// The point currently being explored on the wheel — a SelectionEntry without
+// the id, since it isn't part of the curated set until "+ Add" is pressed.
+type SelectedState = Omit<SelectionEntry, 'id'>;
+
+function makeSelectionId(): string {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
 export default function App() {
   const [selected, setSelected] = useState<SelectedState | null>(null);
+  const [selections, setSelections] = useState<SelectionEntry[]>([]);
   const [muted, setMuted] = useState(true);
   const [showInfo, setShowInfo] = useState(true);
   // Stores the position before a complement jump so we can toggle back
   const [origin, setOrigin] = useState<{ angleDeg: number; radius: number } | null>(null);
   const [exportTab, setExportTab] = useState<ExportTab | null>(null);
 
-  const paletteRoles = useMemo(
-    () => (selected ? derivePaletteRoles(selected.angleDeg, selected.radius, selected.blend) : null),
-    [selected]
-  );
-  const radarPoints = useMemo(
-    () => (selected ? deriveRadarData(selected.blend) : null),
-    [selected]
-  );
+  const handleAddSelection = () => {
+    if (!selected || selections.length >= MAX_SELECTIONS) return;
+    setSelections((prev) => [...prev, { ...selected, id: makeSelectionId() }]);
+  };
+
+  const handleRemoveSelection = (id: string) => {
+    setSelections((prev) => prev.filter((s) => s.id !== id));
+  };
 
   const handleSelect = (angleDeg: number, radius: number) => {
     const blend = coordinateToBlend(angleDeg, radius);
@@ -160,7 +157,7 @@ export default function App() {
               { key: 'palette', label: 'Emotional Palette' },
               { key: 'mapping', label: 'Emotional Mapping' },
               { key: 'table', label: 'Multisensory Map' },
-              { key: 'title', label: 'Title Card' },
+              { key: 'soundscape', label: 'Soundscape' },
             ] as const
           ).map((t) => (
             <button
@@ -253,6 +250,72 @@ export default function App() {
               </button>
             )}
           </div>
+
+          {/* Curated selection set — feeds the Palette/Mapping/Table deck
+              views, which each require 2–8 of these. */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%', maxWidth: '300px', margin: '0 auto' }}>
+            <button
+              onClick={handleAddSelection}
+              disabled={!selected || selections.length >= MAX_SELECTIONS}
+              style={{
+                background: 'rgba(255,255,255,0.04)',
+                border: '1px solid rgba(255,255,255,0.14)',
+                borderRadius: '3px',
+                padding: '7px 10px',
+                color: !selected || selections.length >= MAX_SELECTIONS ? 'rgba(232,228,222,0.25)' : 'rgba(232,228,222,0.7)',
+                fontFamily: "'Inter', sans-serif",
+                fontWeight: 400,
+                fontSize: '10px',
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+                cursor: !selected || selections.length >= MAX_SELECTIONS ? 'default' : 'pointer',
+              }}
+            >
+              + Add to selection ({selections.length}/{MAX_SELECTIONS})
+            </button>
+
+            {selections.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                {selections.map((s) => (
+                  <span
+                    key={s.id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      background: `hsla(${s.baseHue}, 50%, 25%, 0.4)`,
+                      border: `1px solid hsla(${s.baseHue}, 60%, 55%, 0.4)`,
+                      borderRadius: '2px',
+                      padding: '3px 6px 3px 9px',
+                      fontFamily: "'Inter', sans-serif",
+                      fontWeight: 300,
+                      fontSize: '10px',
+                      letterSpacing: '0.04em',
+                      color: `hsl(${s.baseHue}, 70%, 82%)`,
+                    }}
+                  >
+                    {s.variant.label}
+                    <button
+                      onClick={() => handleRemoveSelection(s.id)}
+                      aria-label={`Remove ${s.variant.label} from selection`}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: 'inherit',
+                        opacity: 0.7,
+                        cursor: 'pointer',
+                        fontSize: '12px',
+                        lineHeight: 1,
+                        padding: 0,
+                      }}
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Right/bottom: Palette Panel */}
@@ -281,7 +344,7 @@ export default function App() {
       {/* Deck export views */}
       {exportTab !== null && (
         <main style={{ flex: 1, overflow: 'auto', padding: '24px 32px 40px' }}>
-          {(exportTab === 'palette' || exportTab === 'mapping' || exportTab === 'table') && !selected && (
+          {selections.length < MIN_SELECTIONS && (
             <div
               style={{
                 fontFamily: "'Cormorant Garamond', serif",
@@ -293,23 +356,25 @@ export default function App() {
                 marginTop: '80px',
               }}
             >
-              select an emotion on the wheel in Explore first, then come back here
+              add an emotion to your selection in Explore, then come back here
             </div>
           )}
 
-          {exportTab === 'palette' && paletteRoles && (
-            <EmotionalPaletteExport panels={paletteRoles} />
+          {exportTab === 'palette' && selections.length >= MIN_SELECTIONS && (
+            <EmotionalPaletteExport selections={selections} />
           )}
 
-          {exportTab === 'mapping' && radarPoints && (
-            <EmotionalMappingExport points={radarPoints} />
+          {exportTab === 'mapping' && selections.length >= MIN_SELECTIONS && (
+            <EmotionalMappingExport selections={selections} />
           )}
 
-          {exportTab === 'table' && selected && (
-            <SensoryTableExport blend={selected.blend} />
+          {exportTab === 'table' && selections.length >= MIN_SELECTIONS && (
+            <SensoryTableExport selections={selections} />
           )}
 
-          {exportTab === 'title' && <TitleCardExport />}
+          {exportTab === 'soundscape' && selections.length >= MIN_SELECTIONS && (
+            <SoundscapeExport selections={selections} />
+          )}
         </main>
       )}
 

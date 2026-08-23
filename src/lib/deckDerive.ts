@@ -1,5 +1,27 @@
-import { EmotionNode } from '../data/emotions';
-import { BlendEntry, coordinateToBlend, blendToAffect } from './mappings';
+import { EmotionNode, EmotionVariant, IntensityLevel } from '../data/emotions';
+import { BlendEntry, AffectVector, coordinateToBlend, blendToAffect } from './mappings';
+
+// A single curated wheel pick, captured for the multi-emotion deck views
+// (Emotional Palette / Mapping / Multisensory Map all take 2–8 of these).
+export interface SelectionEntry {
+  id: string;
+  angleDeg: number;
+  radius: number;
+  emotionId: string;
+  intensity: IntensityLevel;
+  variant: EmotionVariant;
+  baseHue: number;
+  blend: BlendEntry[];
+  affect: AffectVector;
+}
+
+// The single most-representative node in a blend — what the app already
+// calls "primary" (derivePaletteRoles' first role). Shared so the palette
+// summary swatch, the mapping overview's "choice" bubble, and the
+// multisensory overview row all agree on which node represents a selection.
+export function topBlendEntry(blend: BlendEntry[]): BlendEntry {
+  return [...blend].sort((a, b) => b.weight - a.weight)[0];
+}
 
 // ---------------------------------------------------------------------------
 // Derives deck-style, multi-emotion views from a single wheel selection.
@@ -22,6 +44,7 @@ export interface PalettePanelData {
   arousal: number;
   dominance: number;
   weightPct: number | null; // null for complementary/contrast (derived positions, not blend weights)
+  nodeId: string; // exact EmotionNode id (e.g. 'joy-mid') — which generated texture to use
 }
 
 const HIGH_R = 0.36;
@@ -41,6 +64,7 @@ export function derivePaletteRoles(
     arousal: e.node.arousal,
     dominance: e.node.dominance,
     weightPct: Math.round(e.weight * 100),
+    nodeId: e.node.id,
   }));
 
   const compAngle = angleDeg + 180;
@@ -56,6 +80,7 @@ export function derivePaletteRoles(
     arousal: compAffect.arousal,
     dominance: compAffect.dominance,
     weightPct: null,
+    nodeId: compTop.id,
   };
 
   // Same hue neighbourhood as the complement, opposite intensity band —
@@ -72,6 +97,7 @@ export function derivePaletteRoles(
     arousal: contrastAffect.arousal,
     dominance: contrastAffect.dominance,
     weightPct: null,
+    nodeId: contrastTop.id,
   };
 
   return [...primaries, complementary, contrast];
@@ -113,6 +139,34 @@ export function deriveRadarData(blend: BlendEntry[]): RadarPoint[] {
   return [...complementary, ...opposing];
 }
 
+export interface OverviewRadarPoint extends RadarPoint {
+  selectionId: string;
+  isChoice: boolean;
+}
+
+// Combines every curated selection's dominant "choice" (one large, labelled
+// bubble) with up to two of its next-most-significant blend entries (small,
+// unlabelled) onto one shared field. Deliberately thin — with up to 8
+// selections a full per-selection breakdown here would be unreadable, so the
+// overview only carries enough of each blend to gesture at its composition;
+// the full breakdown lives in the per-selection chart underneath it.
+export function deriveOverviewRadarData(selections: { id: string; blend: BlendEntry[] }[]): OverviewRadarPoint[] {
+  const points: OverviewRadarPoint[] = [];
+  for (const sel of selections) {
+    const sorted = [...sel.blend].sort((a, b) => b.weight - a.weight);
+    const [choice, ...rest] = sorted;
+    if (!choice) continue;
+    points.push({ ...toRadarPoint(choice.node, choice.weight, 'complementary'), selectionId: sel.id, isChoice: true });
+    rest
+      .filter((e) => e.weight > 0.04)
+      .slice(0, 2)
+      .forEach((e) => {
+        points.push({ ...toRadarPoint(e.node, e.weight, 'complementary'), selectionId: sel.id, isChoice: false });
+      });
+  }
+  return points;
+}
+
 function toRadarPoint(
   node: EmotionNode,
   weight: number,
@@ -121,7 +175,11 @@ function toRadarPoint(
   return {
     label: node.label,
     angleDeg: node.angle,
-    radiusNorm: kind === 'complementary' ? 0.35 + weight * 2.2 : 0.9,
+    // Bounded to stay within the chart's outer ring (radiusNorm 1 = MAX_R)
+    // even at weight 1 — a direct/pure selection (e.g. clicking exactly on
+    // "Vigilance") used to compute radiusNorm past 2.5, plotting the point
+    // far outside the visible SVG and making it look like it had vanished.
+    radiusNorm: kind === 'complementary' ? 0.35 + Math.min(1, weight) * 0.65 : 0.9,
     hue: node.hue,
     weightPct: kind === 'complementary' ? Math.round(weight * 100) : null,
     kind,
