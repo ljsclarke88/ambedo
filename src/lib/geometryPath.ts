@@ -77,6 +77,39 @@ export function generatePolygonPath(
   return d;
 }
 
+// A static (non-animated) SVG path for one cycle-run of a sine/triangle/
+// sawtooth wave — the same waveform math WaveformCanvas animates live for
+// the Soundscape tab, but rendered once as a path string so it can be used
+// as a background texture pattern. `phase` shifts the start point (radians)
+// so multiple lines drawn with the same params don't all coincide.
+export function generateWavePath(
+  waveType: 'sine' | 'triangle' | 'sawtooth',
+  width: number,
+  height: number,
+  cycles: number,
+  amplitude: number,
+  phase = 0,
+  samples = 48
+): string {
+  const midY = height / 2;
+  let d = '';
+  for (let i = 0; i <= samples; i++) {
+    const x = (i / samples) * width;
+    const t = (i / samples) * cycles * Math.PI * 2 + phase;
+    let y: number;
+    if (waveType === 'sine') {
+      y = midY + amplitude * Math.sin(t);
+    } else {
+      const n = (((t / (Math.PI * 2)) % 1) + 1) % 1;
+      y = waveType === 'triangle'
+        ? midY + amplitude * (n < 0.5 ? 4 * n - 1 : 3 - 4 * n)
+        : midY + amplitude * (2 * n - 1);
+    }
+    d += `${i === 0 ? 'M' : 'L'} ${x.toFixed(2)} ${y.toFixed(2)} `;
+  }
+  return d.trim();
+}
+
 // Small deterministic PRNG (mulberry32) — used to seed reproducible jitter
 // per selection without needing per-frame randomness.
 export function mulberry32(seed: number): () => number {

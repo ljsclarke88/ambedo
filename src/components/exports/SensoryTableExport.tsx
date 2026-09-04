@@ -9,6 +9,13 @@ interface SensoryTableExportProps {
 
 const COLUMNS = ['Sound', 'Light', 'Scent', 'Touch', 'Space'] as const;
 
+// Dark ink on a white page — same opacity ladder the dark theme used
+// (0.85/0.55/0.4), just inverted, so relative emphasis is unchanged.
+const INK_STRONG = 'rgba(20,18,16,0.85)';
+const INK_MED = 'rgba(20,18,16,0.55)';
+const INK_FAINT = 'rgba(20,18,16,0.4)';
+const INK_BORDER = 'rgba(20,18,16,0.14)';
+
 function SectionHeading({ children }: { children: React.ReactNode }) {
   return (
     <div
@@ -18,7 +25,7 @@ function SectionHeading({ children }: { children: React.ReactNode }) {
         fontSize: '10px',
         letterSpacing: '0.14em',
         textTransform: 'uppercase',
-        color: 'rgba(232,228,222,0.4)',
+        color: INK_FAINT,
         marginBottom: '18px',
       }}
     >
@@ -40,8 +47,8 @@ function HeaderRow() {
             fontSize: '11px',
             letterSpacing: '0.1em',
             textTransform: 'uppercase',
-            color: 'rgba(232,228,222,0.55)',
-            borderBottom: '1px solid rgba(255,255,255,0.1)',
+            color: INK_MED,
+            borderBottom: `1px solid ${INK_BORDER}`,
             paddingBottom: '6px',
           }}
         >
@@ -63,7 +70,7 @@ function LabelCell({ label, hue, italic = true }: { label: string; hue: number; 
         fontWeight: 400,
         fontSize: italic ? '16px' : '11px',
         letterSpacing: italic ? undefined : '0.04em',
-        color: 'rgba(232,228,222,0.85)',
+        color: INK_STRONG,
         display: 'flex',
         alignItems: 'center',
       }}
@@ -75,7 +82,7 @@ function LabelCell({ label, hue, italic = true }: { label: string; hue: number; 
           top: 0,
           bottom: 0,
           width: '3px',
-          background: `hsl(${hue}, 65%, 55%)`,
+          background: `hsl(${hue}, 65%, 45%)`,
         }}
       />
       {label}
@@ -94,7 +101,7 @@ function SensoryCells({ profile }: { profile: ReturnType<typeof emotionToSensory
               fontFamily: "'Inter', sans-serif",
               fontWeight: 500,
               fontSize: '11px',
-              color: 'rgba(232,228,222,0.85)',
+              color: INK_STRONG,
               marginBottom: '2px',
             }}
           >
@@ -105,7 +112,7 @@ function SensoryCells({ profile }: { profile: ReturnType<typeof emotionToSensory
               fontFamily: "'Inter', sans-serif",
               fontWeight: 300,
               fontSize: '10px',
-              color: 'rgba(232,228,222,0.4)',
+              color: INK_FAINT,
             }}
           >
             {cell.detail}
@@ -132,7 +139,7 @@ const SelectionTable = React.forwardRef<HTMLDivElement, { blend: BlendEntry[] }>
         gridTemplateColumns: '120px repeat(5, 1fr)',
         rowGap: '14px',
         columnGap: '16px',
-        background: '#0d0d0f',
+        background: '#ffffff',
         padding: '12px',
         borderRadius: '4px',
       }}
@@ -161,7 +168,47 @@ function SelectionTableRow({ index, selection }: { index: number; selection: Sel
       <div style={{ marginTop: '12px' }}>
         <SelectionTable ref={ref} blend={selection.blend} />
       </div>
-      <DownloadBar targetRef={ref} filename={`multisensory-map-${index + 1}-${selection.variant.label.toLowerCase()}`} />
+      <DownloadBar
+        targetRef={ref}
+        filename={`multisensory-map-${index + 1}-${selection.variant.label.toLowerCase()}`}
+        theme="light"
+      />
+    </div>
+  );
+}
+
+// The overview grid — one row per selection, using each selection's primary
+// emotion only — self-contained with its own download, same as the other
+// two export tabs' overview sections.
+function OverviewTable({ selections }: { selections: SelectionEntry[] }) {
+  const ref = useRef<HTMLDivElement>(null);
+  return (
+    <div style={{ marginBottom: '36px' }}>
+      <div
+        ref={ref}
+        style={{
+          display: 'grid',
+          gridTemplateColumns: '120px repeat(5, 1fr)',
+          rowGap: '14px',
+          columnGap: '16px',
+          background: '#ffffff',
+          padding: '12px',
+          borderRadius: '4px',
+        }}
+      >
+        <HeaderRow />
+        {selections.map((s) => {
+          const top = topBlendEntry(s.blend);
+          const profile = emotionToSensoryProfile(top.node.valence, top.node.arousal, top.node.dominance);
+          return (
+            <React.Fragment key={s.id}>
+              <LabelCell label={top.node.label} hue={top.node.hue} />
+              <SensoryCells profile={profile} />
+            </React.Fragment>
+          );
+        })}
+      </div>
+      <DownloadBar targetRef={ref} filename="multisensory-map-overview" label="Overview" theme="light" />
     </div>
   );
 }
@@ -171,31 +218,10 @@ export default function SensoryTableExport({ selections }: SensoryTableExportPro
 
   return (
     <div>
-      <div ref={ref} style={{ background: '#0d0d0f', borderRadius: '4px', padding: '28px 24px' }}>
+      <div ref={ref} style={{ background: '#ffffff', borderRadius: '4px', padding: '28px 24px' }}>
         <SectionHeading>Multisensory Map — Overview</SectionHeading>
 
-        {/* One row per selection, using each selection's primary emotion only */}
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: '120px repeat(5, 1fr)',
-            rowGap: '14px',
-            columnGap: '16px',
-            marginBottom: '36px',
-          }}
-        >
-          <HeaderRow />
-          {selections.map((s) => {
-            const top = topBlendEntry(s.blend);
-            const profile = emotionToSensoryProfile(top.node.valence, top.node.arousal, top.node.dominance);
-            return (
-              <React.Fragment key={s.id}>
-                <LabelCell label={top.node.label} hue={top.node.hue} />
-                <SensoryCells profile={profile} />
-              </React.Fragment>
-            );
-          })}
-        </div>
+        <OverviewTable selections={selections} />
 
         {/* Full breakdown per selection */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>

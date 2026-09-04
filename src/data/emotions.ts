@@ -1,337 +1,454 @@
-export type IntensityLevel = 'low' | 'mid' | 'high';
+// ---------------------------------------------------------------------------
+// A 3-tier "feelings wheel" — 6 core families, each with several ring2
+// sub-categories, each with several specific ring3 words — matching the
+// structure of a standard feelings-wheel reference chart (Anger / Fear /
+// Sadness / Surprise / Love / Joy), rather than Plutchik's 8-family/dyad
+// circumplex the app previously used.
+//
+// Every word still carries valence/arousal/dominance (Russell 1980 circumplex
+// + Mehrabian & Russell 1977 PAD), sourced/extrapolated the same way as
+// before (Warriner, Kuperman & Brysbaert 2013 norms, nearest-neighbour
+// estimation for words outside that lexicon) — the cross-modal science
+// (colour/sound/taste/scent/geometry/motion, all in lib/mappings.ts) is a
+// pure function of these three numbers plus hue, so it applies to every
+// node here unchanged.
+// ---------------------------------------------------------------------------
+
+export type WheelTier = 'ring1' | 'ring2' | 'ring3';
+export type IntensityLevel = WheelTier; // kept name for minimal churn elsewhere
 
 export interface EmotionVariant {
   label: string;
-  valence: number;    // Russell circumplex: -1 to 1
-  arousal: number;    // Russell circumplex: 0 to 1
-  dominance: number;  // PAD model (Mehrabian & Russell 1977): 0 = powerless, 1 = in control
-}
-
-export interface PrimaryEmotion {
-  id: string;
-  label: string;
-  hue: number;    // 0–360, Plutchik's colour association
-  angle: number;  // degrees — convention: (angleDeg - 90) gives standard math angle, so -90 renders at top
-  low: EmotionVariant;
-  mid: EmotionVariant;
-  high: EmotionVariant;
-}
-
-export interface Dyad {
-  id: string;
-  label: string;
-  between: [string, string];
-  angle: number;
-  hue: number;
   valence: number;
   arousal: number;
   dominance: number;
 }
 
-// Flat anchor for the blend engine — all 24 primary variants + 8 dyads
+// Flat anchor for the blend engine — every ring1 + ring2 + ring3 node.
 export interface EmotionNode {
   id: string;
   label: string;
   angle: number;
-  radius: number;     // normalised 0–1 within the wheel (0 = centre, 1 = outer edge at r=220)
+  radius: number;     // normalised 0–1 within the wheel (0 = centre, 1 = outer edge)
   valence: number;
   arousal: number;
   dominance: number;
   hue: number;
-  sourceId: string;   // parent emotion/dyad id
-  intensity: IntensityLevel | 'dyad';
+  sourceId: string;   // root family id
+  intensity: IntensityLevel;
 }
 
-// Entry in the extended lexicon for text search + wheel navigation
-export interface LexiconEntry {
+export interface Ring3Word extends EmotionVariant {}
+
+export interface Ring2Category extends EmotionVariant {
   label: string;
-  angle: number;
-  radius: number;
-  valence: number;
-  arousal: number;
-  dominance: number;
+  words: Ring3Word[];
+}
+
+export interface CoreFamily extends EmotionVariant {
+  id: string;
+  label: string;
+  hue: number;   // 0–360, Jonauskaite et al. (2023)-consistent colour anchor
+  angle: number; // degrees, clockwise from top — polarToCartesian uses (angleDeg - 90), so 0 = 12 o'clock, 90 = 3 o'clock, 180 = 6 o'clock, 270 = 9 o'clock
+  categories: Ring2Category[];
+}
+
+// Ring radius anchors, normalised 0–1. Must match EmotionWheel.tsx's pixel
+// ring geometry (ring1 40–150, ring2 150–260, ring3 260–420, all normalised
+// against the outer radius 420) so that clicking a wedge and rendering the
+// indicator dot at that node's radius always land in the same place.
+export const RING_RADIUS: Record<WheelTier, number> = {
+  ring1: (40 + 150) / 2 / 420,
+  ring2: (150 + 260) / 2 / 420,
+  ring3: (260 + 420) / 2 / 420,
+};
+
+function slug(label: string): string {
+  return label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 }
 
 // ---------------------------------------------------------------------------
-// Primary emotions — 8 axes, 3 intensity variants each
-// Dominance values sourced from Warriner, Kuperman & Brysbaert (2013) and
-// Mehrabian & Russell (1977) PAD scale.
+// WHEEL — the 6 core families, each 60° wide, in clockwise order from top.
 // ---------------------------------------------------------------------------
 
-export const EMOTIONS: PrimaryEmotion[] = [
+export const WHEEL: CoreFamily[] = [
   {
-    id: 'joy',
-    label: 'Joy',
-    hue: 55,
-    angle: -90,
-    low:  { label: 'serenity',   valence:  0.70, arousal: 0.25, dominance: 0.65 },
-    mid:  { label: 'joy',        valence:  0.88, arousal: 0.60, dominance: 0.75 },
-    high: { label: 'ecstasy',    valence:  0.98, arousal: 0.92, dominance: 0.80 },
+    id: 'anger', label: 'Anger', hue: 330, angle: 0,
+    valence: -0.65, arousal: 0.65, dominance: 0.60,
+    categories: [
+      {
+        label: 'Annoyed', valence: -0.42, arousal: 0.48, dominance: 0.50,
+        words: [
+          { label: 'Irritable', valence: -0.42, arousal: 0.50, dominance: 0.29 },
+          { label: 'Aggravated', valence: -0.55, arousal: 0.62, dominance: 0.29 },
+          { label: 'Agitated', valence: -0.45, arousal: 0.70, dominance: 0.31 },
+        ],
+      },
+      {
+        label: 'Frustrated', valence: -0.60, arousal: 0.72, dominance: 0.48,
+        words: [
+          { label: 'Exasperated', valence: -0.50, arousal: 0.58, dominance: 0.24 },
+          { label: 'Indignant', valence: -0.65, arousal: 0.70, dominance: 0.65 },
+        ],
+      },
+      {
+        label: 'Envious', valence: -0.55, arousal: 0.60, dominance: 0.45,
+        words: [
+          { label: 'Jealous', valence: -0.60, arousal: 0.65, dominance: 0.48 },
+          { label: 'Resentful', valence: -0.68, arousal: 0.60, dominance: 0.58 },
+          { label: 'Bitter', valence: -0.65, arousal: 0.55, dominance: 0.52 },
+          { label: 'Envy', valence: -0.50, arousal: 0.55, dominance: 0.42 },
+        ],
+      },
+      {
+        label: 'Contemptuous', valence: -0.70, arousal: 0.60, dominance: 0.78,
+        words: [
+          { label: 'Scornful', valence: -0.75, arousal: 0.65, dominance: 0.80 },
+          { label: 'Disdainful', valence: -0.70, arousal: 0.58, dominance: 0.78 },
+          { label: 'Condescending', valence: -0.60, arousal: 0.55, dominance: 0.80 },
+          { label: 'Smug', valence: -0.38, arousal: 0.50, dominance: 0.80 },
+        ],
+      },
+      {
+        label: 'Furious', valence: -0.88, arousal: 0.95, dominance: 0.82,
+        words: [
+          { label: 'Enraged', valence: -0.90, arousal: 0.97, dominance: 0.80 },
+          { label: 'Livid', valence: -0.85, arousal: 0.92, dominance: 0.82 },
+          { label: 'Rage', valence: -0.92, arousal: 0.98, dominance: 0.80 },
+          { label: 'Hostile', valence: -0.72, arousal: 0.70, dominance: 0.68 },
+          { label: 'Hate', valence: -0.80, arousal: 0.68, dominance: 0.62 },
+        ],
+      },
+      {
+        label: 'Aggressive', valence: -0.40, arousal: 0.85, dominance: 0.85,
+        words: [
+          { label: 'Determined', valence: 0.22, arousal: 0.75, dominance: 0.85 },
+          { label: 'Driven', valence: 0.25, arousal: 0.78, dominance: 0.85 },
+          { label: 'Competitive', valence: 0.12, arousal: 0.75, dominance: 0.78 },
+        ],
+      },
+    ],
   },
   {
-    id: 'trust',
-    label: 'Trust',
-    hue: 110,
-    angle: -45,
-    low:  { label: 'acceptance', valence:  0.50, arousal: 0.18, dominance: 0.45 },
-    mid:  { label: 'trust',      valence:  0.62, arousal: 0.32, dominance: 0.55 },
-    high: { label: 'admiration', valence:  0.75, arousal: 0.52, dominance: 0.48 },
+    id: 'fear', label: 'Fear', hue: 20, angle: 300,
+    valence: -0.65, arousal: 0.65, dominance: 0.20,
+    categories: [
+      {
+        label: 'Nervous', valence: -0.55, arousal: 0.65, dominance: 0.28,
+        words: [
+          { label: 'Uneasy', valence: -0.50, arousal: 0.55, dominance: 0.28 },
+          { label: 'Worried', valence: -0.60, arousal: 0.62, dominance: 0.25 },
+          { label: 'Anxious', valence: -0.65, arousal: 0.75, dominance: 0.25 },
+        ],
+      },
+      {
+        label: 'Scared', valence: -0.75, arousal: 0.80, dominance: 0.18,
+        words: [
+          { label: 'Frightened', valence: -0.78, arousal: 0.75, dominance: 0.15 },
+          { label: 'Panicked', valence: -0.90, arousal: 0.96, dominance: 0.08 },
+          { label: 'Panic', valence: -0.85, arousal: 0.90, dominance: 0.10 },
+          { label: 'Hysterical', valence: -0.55, arousal: 0.85, dominance: 0.19 },
+        ],
+      },
+      {
+        label: 'Insecure', valence: -0.50, arousal: 0.45, dominance: 0.18,
+        words: [
+          { label: 'Humble', valence: 0.30, arousal: 0.20, dominance: 0.25 },
+          { label: 'Meek', valence: 0.08, arousal: 0.28, dominance: 0.15 },
+          { label: 'Timid', valence: -0.15, arousal: 0.45, dominance: 0.20 },
+          { label: 'Inferior', valence: -0.45, arousal: 0.36, dominance: 0.17 },
+          { label: 'Inadequate', valence: -0.50, arousal: 0.40, dominance: 0.16 },
+          { label: 'Vulnerable', valence: -0.55, arousal: 0.45, dominance: 0.15 },
+        ],
+      },
+      {
+        label: 'Horrified', valence: -0.88, arousal: 0.92, dominance: 0.08,
+        words: [
+          { label: 'Horror', valence: -0.85, arousal: 0.88, dominance: 0.10 },
+          { label: 'Terror', valence: -0.92, arousal: 0.96, dominance: 0.08 },
+          { label: 'Dread', valence: -0.82, arousal: 0.80, dominance: 0.12 },
+          { label: 'Mortified', valence: -0.65, arousal: 0.56, dominance: 0.16 },
+        ],
+      },
+    ],
   },
   {
-    id: 'fear',
-    label: 'Fear',
-    hue: 82,
-    angle: 0,
-    low:  { label: 'apprehension', valence: -0.38, arousal: 0.48, dominance: 0.28 },
-    mid:  { label: 'fear',         valence: -0.72, arousal: 0.78, dominance: 0.15 },
-    high: { label: 'terror',       valence: -0.92, arousal: 0.96, dominance: 0.08 },
+    id: 'sadness', label: 'Sadness', hue: 260, angle: 60,
+    valence: -0.65, arousal: 0.30, dominance: 0.20,
+    categories: [
+      {
+        label: 'Lonely', valence: -0.70, arousal: 0.22, dominance: 0.15,
+        words: [
+          { label: 'Isolated', valence: -0.55, arousal: 0.30, dominance: 0.20 },
+          { label: 'Forlorn', valence: -0.85, arousal: 0.18, dominance: 0.08 },
+          { label: 'Neglected', valence: -0.55, arousal: 0.36, dominance: 0.20 },
+        ],
+      },
+      {
+        label: 'Depressed', valence: -0.85, arousal: 0.24, dominance: 0.12,
+        words: [
+          { label: 'Melancholy', valence: -0.72, arousal: 0.22, dominance: 0.22 },
+          { label: 'Gloomy', valence: -0.65, arousal: 0.20, dominance: 0.20 },
+          { label: 'Despair', valence: -0.85, arousal: 0.45, dominance: 0.15 },
+          { label: 'Powerless', valence: -0.69, arousal: 0.35, dominance: 0.10 },
+          { label: 'Helpless', valence: -0.80, arousal: 0.22, dominance: 0.05 },
+        ],
+      },
+      {
+        label: 'Hurt', valence: -0.68, arousal: 0.35, dominance: 0.15,
+        words: [
+          { label: 'Sorrow', valence: -0.78, arousal: 0.25, dominance: 0.15 },
+          { label: 'Sorrowful', valence: -0.80, arousal: 0.28, dominance: 0.15 },
+          { label: 'Devastated', valence: -0.96, arousal: 0.42, dominance: 0.08 },
+          { label: 'Heartbroken', valence: -0.90, arousal: 0.36, dominance: 0.08 },
+        ],
+      },
+      {
+        label: 'Guilty', valence: -0.75, arousal: 0.45, dominance: 0.18,
+        words: [
+          { label: 'Ashamed', valence: -0.78, arousal: 0.42, dominance: 0.15 },
+          { label: 'Regretful', valence: -0.65, arousal: 0.35, dominance: 0.25 },
+          { label: 'Embarrassed', valence: -0.60, arousal: 0.52, dominance: 0.20 },
+          { label: 'Sheepish', valence: -0.45, arousal: 0.38, dominance: 0.22 },
+          { label: 'Shameful', valence: -0.70, arousal: 0.47, dominance: 0.11 },
+        ],
+      },
+      {
+        label: 'Disappointed', valence: -0.60, arousal: 0.48, dominance: 0.28,
+        words: [
+          { label: 'Disillusioned', valence: -0.65, arousal: 0.45, dominance: 0.28 },
+          { label: 'Let down', valence: -0.55, arousal: 0.45, dominance: 0.25 },
+          { label: 'Dismayed', valence: -0.53, arousal: 0.44, dominance: 0.22 },
+          { label: 'Displeased', valence: -0.45, arousal: 0.36, dominance: 0.33 },
+        ],
+      },
+      {
+        label: 'Grief', valence: -0.96, arousal: 0.38, dominance: 0.10,
+        words: [
+          { label: 'Bereaved', valence: -0.92, arousal: 0.35, dominance: 0.08 },
+          { label: 'Suffering', valence: -0.80, arousal: 0.55, dominance: 0.15 },
+          { label: 'Resigned', valence: -0.65, arousal: 0.15, dominance: 0.20 },
+          { label: 'Wistful', valence: -0.38, arousal: 0.25, dominance: 0.30 },
+          { label: 'Nostalgic', valence: -0.18, arousal: 0.30, dominance: 0.35 },
+          { label: 'Yearning', valence: -0.28, arousal: 0.48, dominance: 0.28 },
+        ],
+      },
+    ],
   },
   {
-    id: 'surprise',
-    label: 'Surprise',
-    hue: 185,
-    angle: 45,
-    low:  { label: 'distraction', valence:  0.08, arousal: 0.45, dominance: 0.42 },
-    mid:  { label: 'surprise',    valence:  0.20, arousal: 0.82, dominance: 0.38 },
-    high: { label: 'amazement',   valence:  0.28, arousal: 0.96, dominance: 0.30 },
+    id: 'surprise', label: 'Surprise', hue: 195, angle: 120,
+    valence: 0.10, arousal: 0.75, dominance: 0.30,
+    categories: [
+      {
+        label: 'Confused', valence: -0.30, arousal: 0.65, dominance: 0.28,
+        words: [
+          { label: 'Bewildered', valence: -0.22, arousal: 0.75, dominance: 0.25 },
+          { label: 'Perplexed', valence: -0.20, arousal: 0.50, dominance: 0.31 },
+          { label: 'Dumbfounded', valence: -0.12, arousal: 0.85, dominance: 0.20 },
+        ],
+      },
+      {
+        label: 'Amazed', valence: 0.30, arousal: 0.85, dominance: 0.30,
+        words: [
+          { label: 'Astonished', valence: 0.25, arousal: 0.88, dominance: 0.28 },
+          { label: 'Astounded', valence: 0.38, arousal: 0.72, dominance: 0.39 },
+          { label: 'Speechless', valence: 0.13, arousal: 0.61, dominance: 0.33 },
+        ],
+      },
+      {
+        label: 'Startled', valence: -0.05, arousal: 0.85, dominance: 0.25,
+        words: [
+          { label: 'Shocked', valence: -0.15, arousal: 0.78, dominance: 0.28 },
+          { label: 'Stunned', valence: -0.05, arousal: 0.88, dominance: 0.20 },
+        ],
+      },
+      {
+        label: 'Overwhelmed', valence: -0.22, arousal: 0.88, dominance: 0.15,
+        words: [
+          { label: 'Awed', valence: -0.10, arousal: 0.82, dominance: 0.25 },
+          { label: 'Awe-struck', valence: -0.08, arousal: 0.85, dominance: 0.22 },
+          { label: 'Reverent', valence: 0.22, arousal: 0.65, dominance: 0.28 },
+          { label: 'Stimulated', valence: 0.28, arousal: 0.70, dominance: 0.44 },
+        ],
+      },
+    ],
   },
   {
-    id: 'sadness',
-    label: 'Sadness',
-    hue: 220,
-    angle: 90,
-    low:  { label: 'pensiveness', valence: -0.52, arousal: 0.18, dominance: 0.28 },
-    mid:  { label: 'sadness',     valence: -0.78, arousal: 0.28, dominance: 0.18 },
-    high: { label: 'grief',       valence: -0.96, arousal: 0.38, dominance: 0.10 },
+    id: 'joy', label: 'Joy', hue: 105, angle: 180,
+    valence: 0.75, arousal: 0.60, dominance: 0.65,
+    categories: [
+      {
+        label: 'Content', valence: 0.65, arousal: 0.22, dominance: 0.60,
+        words: [
+          { label: 'Glad', valence: 0.70, arousal: 0.45, dominance: 0.62 },
+          { label: 'Pleased', valence: 0.75, arousal: 0.52, dominance: 0.65 },
+          { label: 'Happy', valence: 0.75, arousal: 0.55, dominance: 0.65 },
+          { label: 'Satisfied', valence: 0.55, arousal: 0.33, dominance: 0.58 },
+          { label: 'Calm', valence: 0.65, arousal: 0.10, dominance: 0.62 },
+        ],
+      },
+      {
+        label: 'Proud', valence: 0.82, arousal: 0.65, dominance: 0.85,
+        words: [
+          { label: 'Gratified', valence: 0.78, arousal: 0.55, dominance: 0.65 },
+          { label: 'Triumphant', valence: 0.75, arousal: 0.70, dominance: 0.72 },
+          { label: 'Illustrious', valence: 0.50, arousal: 0.44, dominance: 0.67 },
+          { label: 'Confident', valence: 0.72, arousal: 0.55, dominance: 0.82 },
+        ],
+      },
+      {
+        label: 'Excited', valence: 0.80, arousal: 0.85, dominance: 0.72,
+        words: [
+          { label: 'Exhilarated', valence: 0.95, arousal: 0.93, dominance: 0.80 },
+          { label: 'Elated', valence: 0.90, arousal: 0.80, dominance: 0.76 },
+          { label: 'Euphoric', valence: 0.85, arousal: 0.85, dominance: 0.70 },
+          { label: 'Zeal', valence: 0.50, arousal: 0.72, dominance: 0.58 },
+          { label: 'Wired', valence: 0.55, arousal: 0.90, dominance: 0.65 },
+          { label: 'Eager', valence: 0.65, arousal: 0.75, dominance: 0.65 },
+        ],
+      },
+      {
+        label: 'Optimistic', valence: 0.72, arousal: 0.60, dominance: 0.68,
+        words: [
+          { label: 'Hopeful', valence: 0.68, arousal: 0.55, dominance: 0.60 },
+          { label: 'Enthusiastic', valence: 0.82, arousal: 0.80, dominance: 0.72 },
+          { label: 'Inspired', valence: 0.80, arousal: 0.78, dominance: 0.70 },
+          { label: 'Motivated', valence: 0.75, arousal: 0.75, dominance: 0.72 },
+          { label: 'Curious', valence: 0.45, arousal: 0.55, dominance: 0.55 },
+          { label: 'Intrigued', valence: 0.48, arousal: 0.60, dominance: 0.55 },
+        ],
+      },
+      {
+        label: 'Enchanted', valence: 0.73, arousal: 0.53, dominance: 0.44,
+        words: [
+          { label: 'Blissful', valence: 0.96, arousal: 0.88, dominance: 0.80 },
+          { label: 'Rapture', valence: 0.88, arousal: 0.72, dominance: 0.61 },
+          { label: 'Jubilant', valence: 0.92, arousal: 0.82, dominance: 0.78 },
+          { label: 'Jubilation', valence: 0.90, arousal: 0.80, dominance: 0.75 },
+          { label: 'Elation', valence: 0.88, arousal: 0.78, dominance: 0.74 },
+        ],
+      },
+      {
+        label: 'Amused', valence: 0.60, arousal: 0.49, dominance: 0.56,
+        words: [
+          { label: 'Cheerful', valence: 0.80, arousal: 0.60, dominance: 0.68 },
+          { label: 'Jovial', valence: 0.55, arousal: 0.47, dominance: 0.50 },
+          { label: 'Delighted', valence: 0.85, arousal: 0.68, dominance: 0.70 },
+          { label: 'Moved', valence: 0.70, arousal: 0.62, dominance: 0.55 },
+          { label: 'Touched', valence: 0.68, arousal: 0.52, dominance: 0.50 },
+        ],
+      },
+    ],
   },
   {
-    id: 'disgust',
-    label: 'Disgust',
-    hue: 285,
-    angle: 135,
-    low:  { label: 'boredom',  valence: -0.42, arousal: 0.12, dominance: 0.42 },
-    mid:  { label: 'disgust',  valence: -0.72, arousal: 0.48, dominance: 0.52 },
-    high: { label: 'loathing', valence: -0.94, arousal: 0.68, dominance: 0.55 },
-  },
-  {
-    id: 'anger',
-    label: 'Anger',
-    hue: 5,
-    angle: 180,
-    low:  { label: 'annoyance', valence: -0.42, arousal: 0.48, dominance: 0.55 },
-    mid:  { label: 'anger',     valence: -0.72, arousal: 0.82, dominance: 0.75 },
-    high: { label: 'rage',      valence: -0.92, arousal: 0.98, dominance: 0.80 },
-  },
-  {
-    id: 'anticipation',
-    label: 'Anticipation',
-    hue: 32,
-    angle: 225,
-    low:  { label: 'interest',      valence:  0.38, arousal: 0.38, dominance: 0.55 },
-    mid:  { label: 'anticipation',  valence:  0.52, arousal: 0.65, dominance: 0.62 },
-    high: { label: 'vigilance',     valence:  0.62, arousal: 0.86, dominance: 0.70 },
+    id: 'love', label: 'Love', hue: 50, angle: 240,
+    valence: 0.75, arousal: 0.45, dominance: 0.50,
+    categories: [
+      {
+        label: 'Affectionate', valence: 0.80, arousal: 0.42, dominance: 0.55,
+        words: [
+          { label: 'Loving', valence: 0.85, arousal: 0.52, dominance: 0.58 },
+          { label: 'Adoring', valence: 0.88, arousal: 0.60, dominance: 0.55 },
+          { label: 'Fond', valence: 0.72, arousal: 0.32, dominance: 0.50 },
+          { label: 'Fondness', valence: 0.68, arousal: 0.28, dominance: 0.48 },
+          { label: 'Tender', valence: 0.70, arousal: 0.28, dominance: 0.50 },
+          { label: 'Tenderness', valence: 0.68, arousal: 0.25, dominance: 0.48 },
+        ],
+      },
+      {
+        label: 'Passion', valence: 0.63, arousal: 0.78, dominance: 0.56,
+        words: [
+          { label: 'Romantic', valence: 0.82, arousal: 0.60, dominance: 0.55 },
+          { label: 'Infatuation', valence: 0.50, arousal: 0.70, dominance: 0.42 },
+          { label: 'Desire', valence: 0.55, arousal: 0.62, dominance: 0.50 },
+          { label: 'Longing', valence: 0.30, arousal: 0.42, dominance: 0.30 },
+          { label: 'Enthralled', valence: 0.78, arousal: 0.58, dominance: 0.48 },
+        ],
+      },
+      {
+        label: 'Caring', valence: 0.65, arousal: 0.36, dominance: 0.49,
+        words: [
+          { label: 'Compassionate', valence: 0.63, arousal: 0.39, dominance: 0.50 },
+          { label: 'Warm', valence: 0.74, arousal: 0.38, dominance: 0.55 },
+          { label: 'Sentimental', valence: 0.38, arousal: 0.33, dominance: 0.39 },
+        ],
+      },
+      {
+        label: 'Devoted', valence: 0.78, arousal: 0.48, dominance: 0.52,
+        words: [
+          { label: 'Loyal', valence: 0.65, arousal: 0.42, dominance: 0.58 },
+          { label: 'Grateful', valence: 0.75, arousal: 0.45, dominance: 0.55 },
+          { label: 'Empathetic', valence: 0.60, arousal: 0.38, dominance: 0.50 },
+        ],
+      },
+      {
+        label: 'Secure', valence: 0.65, arousal: 0.28, dominance: 0.72,
+        words: [
+          { label: 'Reassured', valence: 0.62, arousal: 0.25, dominance: 0.65 },
+          { label: 'Relieved', valence: 0.70, arousal: 0.32, dominance: 0.60 },
+          { label: 'Attracted', valence: 0.45, arousal: 0.56, dominance: 0.47 },
+        ],
+      },
+    ],
   },
 ];
 
 // ---------------------------------------------------------------------------
-// Dyads — Plutchik's first-order blends at seam angles
-// hue = circular midpoint between the two parent emotions
+// EMOTIONS — kept as a name for minimal churn in consumers that just do
+// EMOTIONS.find(e => e.id === x)?.label — now the 6 core families.
 // ---------------------------------------------------------------------------
-
-export const DYADS: Dyad[] = [
-  { id: 'love',            label: 'Love',            between: ['joy', 'trust'],            angle: -67.5, hue:  82, valence:  0.75, arousal: 0.45, dominance: 0.60 },
-  { id: 'submission',      label: 'Submission',      between: ['trust', 'fear'],           angle: -22.5, hue:  96, valence: -0.05, arousal: 0.55, dominance: 0.18 },
-  { id: 'awe',             label: 'Awe',             between: ['fear', 'surprise'],        angle:  22.5, hue: 133, valence: -0.25, arousal: 0.87, dominance: 0.25 },
-  { id: 'disapproval',     label: 'Disapproval',     between: ['surprise', 'sadness'],     angle:  67.5, hue: 202, valence: -0.45, arousal: 0.55, dominance: 0.32 },
-  { id: 'remorse',         label: 'Remorse',         between: ['sadness', 'disgust'],      angle: 112.5, hue: 252, valence: -0.85, arousal: 0.33, dominance: 0.18 },
-  { id: 'contempt',        label: 'Contempt',        between: ['disgust', 'anger'],        angle: 157.5, hue: 325, valence: -0.80, arousal: 0.65, dominance: 0.72 },
-  { id: 'aggressiveness',  label: 'Aggressiveness',  between: ['anger', 'anticipation'],   angle: 202.5, hue:  18, valence: -0.30, arousal: 0.83, dominance: 0.82 },
-  { id: 'optimism',        label: 'Optimism',        between: ['anticipation', 'joy'],     angle: 247.5, hue:  43, valence:  0.72, arousal: 0.62, dominance: 0.65 },
-];
+export const EMOTIONS = WHEEL.map((f) => ({ id: f.id, label: f.label, hue: f.hue, angle: f.angle }));
 
 // ---------------------------------------------------------------------------
-// EMOTION_NODES — flat anchor array for the blend engine
-// Radii are ring-centre values normalised to the outer wheel edge (r = 220):
-//   high intensity ring (r 55–105)  → 0.36
-//   mid  intensity ring (r 105–165) → 0.61
-//   low  intensity ring (r 165–220) → 0.87
-//   dyad ring (r 220–242, rendered at seam boundary) → 0.95
+// EMOTION_NODES — flattened ring1 + ring2 + ring3, for the blend engine.
+// Ring1 and ring2 subdivide their parent's 60°/category-span evenly. Ring3
+// does NOT nest strictly inside its own category's narrow slice — busy
+// categories (Joy's "Excited" has 6 words inside a 10°-wide category) would
+// produce unreadably thin wedges that way. Instead every ring3 word gets an
+// equal share of its *family's* full 60°, ordered category-by-category, so
+// slice width only depends on how many words the family has in total, not
+// how unevenly they're distributed across its categories.
 // ---------------------------------------------------------------------------
+export const EMOTION_NODES: EmotionNode[] = (() => {
+  const nodes: EmotionNode[] = [];
+  const FAMILY_SPAN = 60;
+  for (const family of WHEEL) {
+    nodes.push({
+      id: family.id, label: family.label, angle: family.angle, radius: RING_RADIUS.ring1,
+      valence: family.valence, arousal: family.arousal, dominance: family.dominance,
+      hue: family.hue, sourceId: family.id, intensity: 'ring1',
+    });
 
-const RING_R = { high: 0.36, mid: 0.61, low: 0.87, dyad: 0.95 } as const;
+    const catSpan = FAMILY_SPAN / family.categories.length;
+    const familyStart = family.angle - FAMILY_SPAN / 2;
 
-export const EMOTION_NODES: EmotionNode[] = [
-  ...EMOTIONS.flatMap((e) => [
-    { id: `${e.id}-high`, label: e.high.label, angle: e.angle, radius: RING_R.high, ...e.high, hue: e.hue, sourceId: e.id, intensity: 'high' as const },
-    { id: `${e.id}-mid`,  label: e.mid.label,  angle: e.angle, radius: RING_R.mid,  ...e.mid,  hue: e.hue, sourceId: e.id, intensity: 'mid'  as const },
-    { id: `${e.id}-low`,  label: e.low.label,  angle: e.angle, radius: RING_R.low,  ...e.low,  hue: e.hue, sourceId: e.id, intensity: 'low'  as const },
-  ]),
-  ...DYADS.map((d) => ({
-    id: d.id,
-    label: d.label,
-    angle: d.angle,
-    radius: RING_R.dyad,
-    valence: d.valence,
-    arousal: d.arousal,
-    dominance: d.dominance,
-    hue: d.hue,
-    sourceId: d.id,
-    intensity: 'dyad' as const,
-  })),
-];
+    family.categories.forEach((cat, ci) => {
+      const catAngle = familyStart + catSpan * (ci + 0.5);
+      const catId = `${family.id}-${slug(cat.label)}`;
+      nodes.push({
+        id: catId, label: cat.label, angle: catAngle, radius: RING_RADIUS.ring2,
+        valence: cat.valence, arousal: cat.arousal, dominance: cat.dominance,
+        hue: family.hue, sourceId: family.id, intensity: 'ring2',
+      });
+    });
 
-// ---------------------------------------------------------------------------
-// EMOTION_LEXICON — ~110 common affect words with approximate wheel positions.
-// angle/radius follow the same convention as EMOTION_NODES.
-// V/A/D values derived from Warriner et al. (2013) and Russell circumplex
-// placements; where exact data is unavailable, extrapolated from neighbours.
-// Words that exactly match EMOTIONS/DYADS labels are excluded to avoid
-// duplicates in search results.
-// ---------------------------------------------------------------------------
-
-export const EMOTION_LEXICON: LexiconEntry[] = [
-  // --- Joy family ---
-  { label: 'blissful',      angle:  -90, radius: 0.93, valence:  0.96, arousal: 0.88, dominance: 0.80 },
-  { label: 'exhilarated',   angle:  -90, radius: 0.91, valence:  0.95, arousal: 0.93, dominance: 0.80 },
-  { label: 'elated',        angle:  -90, radius: 0.82, valence:  0.90, arousal: 0.80, dominance: 0.76 },
-  { label: 'delighted',     angle:  -90, radius: 0.68, valence:  0.85, arousal: 0.68, dominance: 0.70 },
-  { label: 'pleased',       angle:  -90, radius: 0.55, valence:  0.75, arousal: 0.52, dominance: 0.65 },
-  { label: 'glad',          angle:  -90, radius: 0.50, valence:  0.70, arousal: 0.45, dominance: 0.62 },
-  { label: 'content',       angle:  -90, radius: 0.38, valence:  0.65, arousal: 0.22, dominance: 0.60 },
-  { label: 'gratified',     angle:  -85, radius: 0.58, valence:  0.78, arousal: 0.55, dominance: 0.65 },
-  { label: 'proud',         angle:  -85, radius: 0.72, valence:  0.82, arousal: 0.65, dominance: 0.85 },
-  { label: 'moved',         angle:  -80, radius: 0.60, valence:  0.70, arousal: 0.62, dominance: 0.55 },
-  { label: 'touched',       angle:  -78, radius: 0.55, valence:  0.68, arousal: 0.52, dominance: 0.50 },
-  { label: 'cheerful',      angle:  -88, radius: 0.58, valence:  0.80, arousal: 0.60, dominance: 0.68 },
-  { label: 'jubilant',      angle:  -90, radius: 0.78, valence:  0.92, arousal: 0.82, dominance: 0.78 },
-
-  // --- Love dyad (Joy + Trust) ---
-  { label: 'loving',        angle:  -68, radius: 0.65, valence:  0.85, arousal: 0.52, dominance: 0.58 },
-  { label: 'adoring',       angle:  -68, radius: 0.78, valence:  0.88, arousal: 0.60, dominance: 0.55 },
-  { label: 'affectionate',  angle:  -68, radius: 0.58, valence:  0.80, arousal: 0.42, dominance: 0.55 },
-  { label: 'romantic',      angle:  -68, radius: 0.68, valence:  0.82, arousal: 0.60, dominance: 0.55 },
-  { label: 'fond',          angle:  -68, radius: 0.50, valence:  0.72, arousal: 0.32, dominance: 0.50 },
-  { label: 'tender',        angle:  -70, radius: 0.45, valence:  0.70, arousal: 0.28, dominance: 0.50 },
-  { label: 'warm',          angle:  -65, radius: 0.52, valence:  0.74, arousal: 0.38, dominance: 0.55 },
-  { label: 'devoted',       angle:  -65, radius: 0.70, valence:  0.78, arousal: 0.48, dominance: 0.52 },
-
-  // --- Trust family ---
-  { label: 'confident',     angle:  -45, radius: 0.65, valence:  0.72, arousal: 0.55, dominance: 0.82 },
-  { label: 'secure',        angle:  -45, radius: 0.52, valence:  0.65, arousal: 0.28, dominance: 0.72 },
-  { label: 'reassured',     angle:  -45, radius: 0.48, valence:  0.62, arousal: 0.25, dominance: 0.65 },
-  { label: 'grateful',      angle:  -55, radius: 0.55, valence:  0.75, arousal: 0.45, dominance: 0.55 },
-  { label: 'relieved',      angle:  -55, radius: 0.52, valence:  0.70, arousal: 0.32, dominance: 0.60 },
-  { label: 'peaceful',      angle:  -58, radius: 0.35, valence:  0.72, arousal: 0.12, dominance: 0.62 },
-  { label: 'calm',          angle:  -55, radius: 0.30, valence:  0.65, arousal: 0.10, dominance: 0.62 },
-  { label: 'empathetic',    angle:  -45, radius: 0.55, valence:  0.60, arousal: 0.38, dominance: 0.50 },
-  { label: 'loyal',         angle:  -45, radius: 0.68, valence:  0.65, arousal: 0.42, dominance: 0.58 },
-
-  // --- Submission dyad (Trust + Fear) ---
-  { label: 'humble',        angle:  -22, radius: 0.48, valence:  0.30, arousal: 0.20, dominance: 0.25 },
-  { label: 'meek',          angle:  -22, radius: 0.62, valence:  0.08, arousal: 0.28, dominance: 0.15 },
-  { label: 'timid',         angle:  -15, radius: 0.58, valence: -0.15, arousal: 0.45, dominance: 0.20 },
-  { label: 'insecure',      angle:  -10, radius: 0.52, valence: -0.50, arousal: 0.45, dominance: 0.18 },
-  { label: 'vulnerable',    angle:   10, radius: 0.55, valence: -0.55, arousal: 0.45, dominance: 0.15 },
-
-  // --- Fear family ---
-  { label: 'panicked',      angle:    0, radius: 0.92, valence: -0.90, arousal: 0.96, dominance: 0.08 },
-  { label: 'horrified',     angle:    0, radius: 0.88, valence: -0.88, arousal: 0.92, dominance: 0.08 },
-  { label: 'scared',        angle:    0, radius: 0.72, valence: -0.75, arousal: 0.80, dominance: 0.18 },
-  { label: 'anxious',       angle:    5, radius: 0.65, valence: -0.65, arousal: 0.75, dominance: 0.25 },
-  { label: 'nervous',       angle:    5, radius: 0.58, valence: -0.55, arousal: 0.65, dominance: 0.28 },
-  { label: 'worried',       angle:    5, radius: 0.55, valence: -0.60, arousal: 0.62, dominance: 0.25 },
-  { label: 'uneasy',        angle:    5, radius: 0.50, valence: -0.50, arousal: 0.55, dominance: 0.28 },
-  { label: 'dread',         angle:    2, radius: 0.78, valence: -0.82, arousal: 0.80, dominance: 0.12 },
-
-  // --- Awe dyad (Fear + Surprise) ---
-  { label: 'awed',          angle:   22, radius: 0.72, valence: -0.10, arousal: 0.82, dominance: 0.25 },
-  { label: 'reverent',      angle:   22, radius: 0.62, valence:  0.22, arousal: 0.65, dominance: 0.28 },
-  { label: 'overwhelmed',   angle:   20, radius: 0.82, valence: -0.22, arousal: 0.88, dominance: 0.15 },
-  { label: 'stunned',       angle:   25, radius: 0.80, valence: -0.05, arousal: 0.88, dominance: 0.20 },
-  { label: 'dumbfounded',   angle:   28, radius: 0.75, valence: -0.12, arousal: 0.85, dominance: 0.20 },
-
-  // --- Surprise family ---
-  { label: 'astonished',    angle:   45, radius: 0.82, valence:  0.25, arousal: 0.88, dominance: 0.28 },
-  { label: 'startled',      angle:   45, radius: 0.75, valence: -0.05, arousal: 0.85, dominance: 0.25 },
-  { label: 'bewildered',    angle:   50, radius: 0.65, valence: -0.22, arousal: 0.75, dominance: 0.25 },
-  { label: 'confused',      angle:   52, radius: 0.55, valence: -0.30, arousal: 0.65, dominance: 0.28 },
-
-  // --- Disapproval dyad (Surprise + Sadness) ---
-  { label: 'disappointed',  angle:   68, radius: 0.65, valence: -0.60, arousal: 0.48, dominance: 0.28 },
-  { label: 'disillusioned', angle:   68, radius: 0.70, valence: -0.65, arousal: 0.45, dominance: 0.28 },
-  { label: 'let down',      angle:   67, radius: 0.60, valence: -0.55, arousal: 0.45, dominance: 0.25 },
-
-  // --- Sadness family ---
-  { label: 'devastated',    angle:   90, radius: 0.90, valence: -0.96, arousal: 0.42, dominance: 0.08 },
-  { label: 'heartbroken',   angle:   90, radius: 0.84, valence: -0.90, arousal: 0.36, dominance: 0.08 },
-  { label: 'bereaved',      angle:   90, radius: 0.87, valence: -0.92, arousal: 0.35, dominance: 0.08 },
-  { label: 'depressed',     angle:   90, radius: 0.76, valence: -0.85, arousal: 0.24, dominance: 0.12 },
-  { label: 'melancholy',    angle:   90, radius: 0.65, valence: -0.72, arousal: 0.22, dominance: 0.22 },
-  { label: 'gloomy',        angle:   90, radius: 0.60, valence: -0.65, arousal: 0.20, dominance: 0.20 },
-  { label: 'lonely',        angle:   92, radius: 0.65, valence: -0.70, arousal: 0.22, dominance: 0.15 },
-  { label: 'forlorn',       angle:   92, radius: 0.78, valence: -0.85, arousal: 0.18, dominance: 0.08 },
-  { label: 'helpless',      angle:   95, radius: 0.75, valence: -0.80, arousal: 0.22, dominance: 0.05 },
-  { label: 'wistful',       angle:   85, radius: 0.55, valence: -0.38, arousal: 0.25, dominance: 0.30 },
-  { label: 'nostalgic',     angle:   82, radius: 0.50, valence: -0.18, arousal: 0.30, dominance: 0.35 },
-  { label: 'yearning',      angle:   85, radius: 0.60, valence: -0.28, arousal: 0.48, dominance: 0.28 },
-  { label: 'sorrowful',     angle:   90, radius: 0.72, valence: -0.80, arousal: 0.28, dominance: 0.15 },
-
-  // --- Remorse dyad (Sadness + Disgust) ---
-  { label: 'guilty',        angle:  112, radius: 0.72, valence: -0.75, arousal: 0.45, dominance: 0.18 },
-  { label: 'ashamed',       angle:  112, radius: 0.74, valence: -0.78, arousal: 0.42, dominance: 0.15 },
-  { label: 'regretful',     angle:  115, radius: 0.60, valence: -0.65, arousal: 0.35, dominance: 0.25 },
-  { label: 'embarrassed',   angle:  110, radius: 0.58, valence: -0.60, arousal: 0.52, dominance: 0.20 },
-  { label: 'sheepish',      angle:  110, radius: 0.50, valence: -0.45, arousal: 0.38, dominance: 0.22 },
-  { label: 'resigned',      angle:  100, radius: 0.60, valence: -0.65, arousal: 0.15, dominance: 0.20 },
-
-  // --- Disgust family ---
-  { label: 'revolted',      angle:  135, radius: 0.88, valence: -0.92, arousal: 0.72, dominance: 0.48 },
-  { label: 'nauseated',     angle:  135, radius: 0.80, valence: -0.85, arousal: 0.65, dominance: 0.45 },
-  { label: 'repulsed',      angle:  135, radius: 0.78, valence: -0.88, arousal: 0.65, dominance: 0.48 },
-  { label: 'appalled',      angle:  135, radius: 0.75, valence: -0.82, arousal: 0.62, dominance: 0.45 },
-  { label: 'offended',      angle:  140, radius: 0.60, valence: -0.65, arousal: 0.55, dominance: 0.45 },
-  { label: 'repelled',      angle:  135, radius: 0.70, valence: -0.78, arousal: 0.58, dominance: 0.45 },
-
-  // --- Contempt dyad (Disgust + Anger) ---
-  { label: 'contemptuous',  angle:  157, radius: 0.78, valence: -0.70, arousal: 0.60, dominance: 0.78 },
-  { label: 'scornful',      angle:  157, radius: 0.82, valence: -0.75, arousal: 0.65, dominance: 0.80 },
-  { label: 'disdainful',    angle:  157, radius: 0.74, valence: -0.70, arousal: 0.58, dominance: 0.78 },
-  { label: 'smug',          angle:  155, radius: 0.65, valence: -0.38, arousal: 0.50, dominance: 0.80 },
-  { label: 'condescending', angle:  158, radius: 0.70, valence: -0.60, arousal: 0.55, dominance: 0.80 },
-
-  // --- Anger family ---
-  { label: 'furious',       angle:  180, radius: 0.90, valence: -0.88, arousal: 0.95, dominance: 0.82 },
-  { label: 'enraged',       angle:  180, radius: 0.88, valence: -0.90, arousal: 0.97, dominance: 0.80 },
-  { label: 'livid',         angle:  180, radius: 0.85, valence: -0.85, arousal: 0.92, dominance: 0.82 },
-  { label: 'irate',         angle:  180, radius: 0.76, valence: -0.78, arousal: 0.85, dominance: 0.78 },
-  { label: 'resentful',     angle:  175, radius: 0.65, valence: -0.68, arousal: 0.60, dominance: 0.58 },
-  { label: 'hostile',       angle:  170, radius: 0.72, valence: -0.72, arousal: 0.70, dominance: 0.68 },
-  { label: 'indignant',     angle:  175, radius: 0.65, valence: -0.65, arousal: 0.70, dominance: 0.65 },
-  { label: 'frustrated',    angle:  175, radius: 0.60, valence: -0.60, arousal: 0.72, dominance: 0.48 },
-  { label: 'bitter',        angle:  162, radius: 0.68, valence: -0.65, arousal: 0.55, dominance: 0.52 },
-  { label: 'envious',       angle:  165, radius: 0.62, valence: -0.55, arousal: 0.60, dominance: 0.45 },
-  { label: 'jealous',       angle:  162, radius: 0.65, valence: -0.60, arousal: 0.65, dominance: 0.48 },
-
-  // --- Aggressiveness dyad (Anger + Anticipation) ---
-  { label: 'aggressive',    angle:  202, radius: 0.82, valence: -0.40, arousal: 0.85, dominance: 0.85 },
-  { label: 'determined',    angle:  210, radius: 0.72, valence:  0.22, arousal: 0.75, dominance: 0.85 },
-  { label: 'driven',        angle:  210, radius: 0.74, valence:  0.25, arousal: 0.78, dominance: 0.85 },
-  { label: 'competitive',   angle:  205, radius: 0.68, valence:  0.12, arousal: 0.75, dominance: 0.78 },
-
-  // --- Anticipation family ---
-  { label: 'eager',         angle:  225, radius: 0.70, valence:  0.65, arousal: 0.75, dominance: 0.65 },
-  { label: 'excited',       angle:  235, radius: 0.82, valence:  0.80, arousal: 0.85, dominance: 0.72 },
-  { label: 'curious',       angle:  225, radius: 0.55, valence:  0.45, arousal: 0.55, dominance: 0.55 },
-  { label: 'intrigued',     angle:  225, radius: 0.60, valence:  0.48, arousal: 0.60, dominance: 0.55 },
-  { label: 'restless',      angle:  215, radius: 0.65, valence: -0.15, arousal: 0.70, dominance: 0.45 },
-  { label: 'wired',         angle:  228, radius: 0.78, valence:  0.55, arousal: 0.90, dominance: 0.65 },
-
-  // --- Optimism dyad (Anticipation + Joy) ---
-  { label: 'optimistic',    angle:  247, radius: 0.65, valence:  0.72, arousal: 0.60, dominance: 0.68 },
-  { label: 'hopeful',       angle:  247, radius: 0.60, valence:  0.68, arousal: 0.55, dominance: 0.60 },
-  { label: 'enthusiastic',  angle:  250, radius: 0.80, valence:  0.82, arousal: 0.80, dominance: 0.72 },
-  { label: 'inspired',      angle:  250, radius: 0.76, valence:  0.80, arousal: 0.78, dominance: 0.70 },
-  { label: 'motivated',     angle:  248, radius: 0.72, valence:  0.75, arousal: 0.75, dominance: 0.72 },
-];
+    const totalWords = family.categories.reduce((sum, c) => sum + c.words.length, 0);
+    const wordSpan = FAMILY_SPAN / totalWords;
+    let wordIndex = 0;
+    family.categories.forEach((cat) => {
+      const catId = `${family.id}-${slug(cat.label)}`;
+      cat.words.forEach((w) => {
+        const wAngle = familyStart + wordSpan * (wordIndex + 0.5);
+        wordIndex += 1;
+        nodes.push({
+          id: `${catId}-${slug(w.label)}`, label: w.label, angle: wAngle, radius: RING_RADIUS.ring3,
+          valence: w.valence, arousal: w.arousal, dominance: w.dominance,
+          hue: family.hue, sourceId: family.id, intensity: 'ring3',
+        });
+      });
+    });
+  }
+  return nodes;
+})();
 
 export const NEUTRAL: EmotionVariant = { label: 'neutral', valence: 0, arousal: 0.3, dominance: 0.5 };

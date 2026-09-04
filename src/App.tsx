@@ -11,8 +11,9 @@ import EmotionalPaletteExport from './components/exports/EmotionalPaletteExport'
 import EmotionalMappingExport from './components/exports/EmotionalMappingExport';
 import SensoryTableExport from './components/exports/SensoryTableExport';
 import SoundscapeExport from './components/exports/SoundscapeExport';
+import CatalogExport from './components/exports/CatalogExport';
 
-type ExportTab = 'palette' | 'mapping' | 'table' | 'soundscape';
+type ExportTab = 'palette' | 'mapping' | 'table' | 'soundscape' | 'catalog';
 
 const MAX_SELECTIONS = 8;
 const MIN_SELECTIONS = 1;
@@ -48,8 +49,7 @@ export default function App() {
     const affect = blendToAffect(blend);
     const top = blend[0].node;
 
-    const intensity: IntensityLevel =
-      top.intensity === 'dyad' ? 'mid' : top.intensity;
+    const intensity: IntensityLevel = top.intensity;
 
     const parentEmotion = EMOTIONS.find((e) => e.id === top.sourceId);
     const emotionId = parentEmotion?.id ?? top.sourceId;
@@ -73,7 +73,7 @@ export default function App() {
       const blend = coordinateToBlend(angleDeg, radius);
       const affect = blendToAffect(blend);
       const top = blend[0].node;
-      const intensity: IntensityLevel = top.intensity === 'dyad' ? 'mid' : top.intensity;
+      const intensity: IntensityLevel = top.intensity;
       const emotionId = EMOTIONS.find((e) => e.id === top.sourceId)?.id ?? top.sourceId;
       const variant: EmotionVariant = { label: top.label, valence: affect.valence, arousal: affect.arousal, dominance: affect.dominance };
       setSelected({ angleDeg, radius, emotionId, intensity, variant, baseHue: affect.hue, blend, affect });
@@ -85,7 +85,7 @@ export default function App() {
       const blend = coordinateToBlend(compAngle, selected.radius);
       const affect = blendToAffect(blend);
       const top = blend[0].node;
-      const intensity: IntensityLevel = top.intensity === 'dyad' ? 'mid' : top.intensity;
+      const intensity: IntensityLevel = top.intensity;
       const emotionId = EMOTIONS.find((e) => e.id === top.sourceId)?.id ?? top.sourceId;
       const variant: EmotionVariant = { label: top.label, valence: affect.valence, arousal: affect.arousal, dominance: affect.dominance };
       setSelected({ angleDeg: compAngle, radius: selected.radius, emotionId, intensity, variant, baseHue: affect.hue, blend, affect });
@@ -110,7 +110,7 @@ export default function App() {
         display: 'flex',
         flexDirection: 'column',
         width: '100%',
-        minHeight: '100%',
+        height: '100%',
         background: '#0d0d0f',
       }}
     >
@@ -158,6 +158,7 @@ export default function App() {
               { key: 'mapping', label: 'Emotional Mapping' },
               { key: 'table', label: 'Multisensory Map' },
               { key: 'soundscape', label: 'Soundscape' },
+              { key: 'catalog', label: 'Catalog' },
             ] as const
           ).map((t) => (
             <button
@@ -189,7 +190,7 @@ export default function App() {
           errors from unmounted-but-still-animating circle/path elements. */}
       <main
         className="flex flex-col lg:flex-row"
-        style={{ flex: 1, gap: '0', overflow: 'hidden', display: exportTab === null ? 'flex' : 'none' }}
+        style={{ flex: 1, minHeight: 0, gap: '0', overflow: 'hidden', display: exportTab === null ? 'flex' : 'none' }}
       >
         {/* Left/top: wheel + search */}
         <div
@@ -200,10 +201,11 @@ export default function App() {
             alignItems: 'center',
             justifyContent: 'center',
             padding: '24px 24px 16px',
-            flexShrink: 0,
+            minHeight: 0,
             gap: '12px',
           }}
         >
+          <div style={{ flex: '1 1 auto', minHeight: 0, width: '100%', display: 'flex', justifyContent: 'center' }}>
           <EmotionWheel
             onSelect={handleSelect}
             selected={
@@ -222,6 +224,7 @@ export default function App() {
                   : null
             }
           />
+          </div>
 
           {/* Lexicon search + complement toggle */}
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center', width: '100%', maxWidth: '300px', margin: '0 auto' }}>
@@ -323,6 +326,7 @@ export default function App() {
           className="lg:w-[50%]"
           style={{
             flex: 1,
+            minHeight: 0,
             padding: '24px 24px 16px',
             display: 'flex',
             flexDirection: 'column',
@@ -330,7 +334,7 @@ export default function App() {
         >
           <PalettePanel
             emotionId={selected?.emotionId ?? null}
-            intensity={selected?.intensity ?? 'mid'}
+            intensity={selected?.intensity ?? 'ring1'}
             variant={selected?.variant ?? null}
             baseHue={selected?.baseHue ?? 0}
             muted={muted}
@@ -344,7 +348,7 @@ export default function App() {
       {/* Deck export views */}
       {exportTab !== null && (
         <main style={{ flex: 1, overflow: 'auto', padding: '24px 32px 40px' }}>
-          {selections.length < MIN_SELECTIONS && (
+          {exportTab !== 'catalog' && selections.length < MIN_SELECTIONS && (
             <div
               style={{
                 fontFamily: "'Cormorant Garamond', serif",
@@ -375,6 +379,8 @@ export default function App() {
           {exportTab === 'soundscape' && selections.length >= MIN_SELECTIONS && (
             <SoundscapeExport selections={selections} />
           )}
+
+          {exportTab === 'catalog' && <CatalogExport />}
         </main>
       )}
 

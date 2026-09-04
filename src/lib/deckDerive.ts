@@ -1,5 +1,5 @@
 import { EmotionNode, EmotionVariant, IntensityLevel } from '../data/emotions';
-import { BlendEntry, AffectVector, coordinateToBlend, blendToAffect } from './mappings';
+import { BlendEntry, AffectVector, coordinateToBlend } from './mappings';
 
 // A single curated wheel pick, captured for the multi-emotion deck views
 // (Emotional Palette / Mapping / Multisensory Map all take 2–8 of these).
@@ -45,10 +45,32 @@ export interface PalettePanelData {
   dominance: number;
   weightPct: number | null; // null for complementary/contrast (derived positions, not blend weights)
   nodeId: string; // exact EmotionNode id (e.g. 'joy-mid') — which generated texture to use
+  intensity: IntensityLevel; // which ring the source node sits on — drives texture pattern complexity
+  sourceId: string; // root family id (e.g. 'joy') — which family's texture pool to draw from
 }
 
 const HIGH_R = 0.36;
 const LOW_R = 0.87;
+
+function nodeToPanel(e: BlendEntry, role: PaletteRole): PalettePanelData {
+  // Only primary/secondary/tertiary represent an actual share of this
+  // selection's own blend — complementary/contrast are derived from a
+  // different coordinate entirely, so a weight percentage for them would be
+  // meaningless (and previously rendered as a bogus "null%").
+  const isBlendRole = role === 'primary' || role === 'secondary' || role === 'tertiary';
+  return {
+    role,
+    label: e.node.label,
+    hue: e.node.hue,
+    valence: e.node.valence,
+    arousal: e.node.arousal,
+    dominance: e.node.dominance,
+    weightPct: isBlendRole ? Math.round(e.weight * 100) : null,
+    nodeId: e.node.id,
+    intensity: e.node.intensity,
+    sourceId: e.node.sourceId,
+  };
+}
 
 export function derivePaletteRoles(
   angleDeg: number,
@@ -56,51 +78,34 @@ export function derivePaletteRoles(
   blend: BlendEntry[]
 ): PalettePanelData[] {
   const sig = blend.filter((e) => e.weight > 0.02).slice(0, 3);
-  const primaries: PalettePanelData[] = sig.map((e, i) => ({
-    role: (['primary', 'secondary', 'tertiary'] as const)[i],
-    label: e.node.label,
-    hue: e.node.hue,
-    valence: e.node.valence,
-    arousal: e.node.arousal,
-    dominance: e.node.dominance,
-    weightPct: Math.round(e.weight * 100),
-    nodeId: e.node.id,
-  }));
+  // A pure/100% pick (no meaningful secondary contribution) only has one
+  // real thing to say about itself, so it borrows the two nearest
+  // complementary and two nearest contrasting neighbours instead — keeping
+  // every row at a full 5 panels the way a blended selection's
+  // primary/secondary/tertiary + complementary/contrast naturally does.
+  const isPure = sig.length <= 1;
+
+  const primaries: PalettePanelData[] = sig.map((e, i) =>
+    nodeToPanel(e, (['primary', 'secondary', 'tertiary'] as const)[i])
+  );
 
   const compAngle = angleDeg + 180;
 
-  const compBlend = coordinateToBlend(compAngle, radius);
-  const compTop = compBlend[0].node;
-  const compAffect = blendToAffect(compBlend);
-  const complementary: PalettePanelData = {
-    role: 'complementary',
-    label: compTop.label,
-    hue: compAffect.hue,
-    valence: compAffect.valence,
-    arousal: compAffect.arousal,
-    dominance: compAffect.dominance,
-    weightPct: null,
-    nodeId: compTop.id,
-  };
+  const compEntries = coordinateToBlend(compAngle, radius)
+    .filter((e) => e.weight > 0.02)
+    .slice(0, isPure ? 2 : 1);
+  const complementary = compEntries.map((e) => nodeToPanel(e, 'complementary'));
 
   // Same hue neighbourhood as the complement, opposite intensity band —
-  // shares a family with panel 4 while contrasting in energy/scale.
+  // shares a family with the complementary panel(s) while contrasting in
+  // energy/scale.
   const contrastRadius = radius > 0.6 ? HIGH_R : LOW_R;
-  const contrastBlend = coordinateToBlend(compAngle, contrastRadius);
-  const contrastTop = contrastBlend[0].node;
-  const contrastAffect = blendToAffect(contrastBlend);
-  const contrast: PalettePanelData = {
-    role: 'contrast',
-    label: contrastTop.label,
-    hue: contrastAffect.hue,
-    valence: contrastAffect.valence,
-    arousal: contrastAffect.arousal,
-    dominance: contrastAffect.dominance,
-    weightPct: null,
-    nodeId: contrastTop.id,
-  };
+  const contrastEntries = coordinateToBlend(compAngle, contrastRadius)
+    .filter((e) => e.weight > 0.02)
+    .slice(0, isPure ? 2 : 1);
+  const contrast = contrastEntries.map((e) => nodeToPanel(e, 'contrast'));
 
-  return [...primaries, complementary, contrast];
+  return [...primaries, ...complementary, ...contrast];
 }
 
 // ---------------------------------------------------------------------------

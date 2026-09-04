@@ -109,6 +109,8 @@ export default function PalettePanel({
       valence: e.node.valence,
       arousal: e.node.arousal,
       dominance: e.node.dominance,
+      intensity: e.node.intensity,
+      sourceId: e.node.sourceId,
       opacity: i === sorted.length - 1 && sorted.length === 1 ? 1 : e.weight,
     }));
   }, [blend]);
@@ -144,7 +146,7 @@ export default function PalettePanel({
         style={{
           width: '100%',
           height: '100%',
-          minHeight: '400px',
+          minHeight: 0,
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
@@ -184,7 +186,7 @@ export default function PalettePanel({
           position: 'relative',
           width: '100%',
           height: '100%',
-          minHeight: '400px',
+          minHeight: 0,
           background: backgroundGradient,
           borderRadius: '4px',
           overflow: 'hidden',
@@ -205,6 +207,8 @@ export default function PalettePanel({
               valence={l.valence}
               arousal={l.arousal}
               dominance={l.dominance}
+              intensity={l.intensity}
+              familyId={l.sourceId}
             />
           </div>
         ))}

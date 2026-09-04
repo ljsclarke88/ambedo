@@ -1,9 +1,6 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { EMOTIONS, DYADS, IntensityLevel } from '../data/emotions';
-
-// Ring-centre radii normalised to outer wheel edge (r = 220)
-const RING_R = { high: 0.364, mid: 0.614, low: 0.875 } as const;
+import { EMOTIONS, EMOTION_NODES, IntensityLevel, RING_RADIUS } from '../data/emotions';
 
 interface EmotionWheelProps {
   onSelect: (angleDeg: number, radius: number) => void;
@@ -26,32 +23,72 @@ function arcPath(cx: number, cy: number, r1: number, r2: number, startAngle: num
   return `M ${p1.x} ${p1.y} A ${r1} ${r1} 0 ${largeArc} 1 ${p2.x} ${p2.y} L ${p3.x} ${p3.y} A ${r2} ${r2} 0 ${largeArc} 0 ${p4.x} ${p4.y} Z`;
 }
 
-function textArcPosition(cx: number, cy: number, r: number, angleDeg: number) {
-  return polarToCartesian(cx, cy, r, angleDeg);
+function textRotation(angleDeg: number): number {
+  return angleDeg > 90 && angleDeg < 270 ? angleDeg + 180 : angleDeg;
+}
+
+const FAMILY_SPAN = 60;
+
+// Pixel geometry — cx/cy/viewBox sized to comfortably fit the busiest
+// family's ring3 word count without needing multiple stacked rings (unlike
+// the old 8-family layout, this is always exactly 3 rings deep).
+const R_NEUTRAL = 40;
+const R1_IN = 40, R1_OUT = 150;
+const R2_IN = 150, R2_OUT = 260;
+const R3_IN = 260, R3_OUT = 420;
+const MARGIN = 20;
+const HALF = R3_OUT + MARGIN;
+const SIZE = HALF * 2;
+
+interface WedgeNode {
+  id: string;
+  label: string;
+  angle: number;
+  hue: number;
+  valence: number;
+  arousal: number;
+  dominance: number;
+  radius: number; // the actual (angle,radius) this node selects, in the 0–1 blend-engine scale
+}
+
+// Every ring1/ring2/ring3 node for one family, in the same order the data
+// model built them — so slice width can be derived as (60° / count) without
+// duplicating the angle math that produced EMOTION_NODES in the first place.
+function familyTier(familyId: string, tier: IntensityLevel): WedgeNode[] {
+  return EMOTION_NODES.filter((n) => n.sourceId === familyId && n.intensity === tier);
 }
 
 export default function EmotionWheel({ onSelect, selected, indicatorPos, complementPos }: EmotionWheelProps) {
-  const [hovered, setHovered] = useState<{ emotionId: string; intensity: IntensityLevel } | null>(null);
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const [hoveredLabel, setHoveredLabel] = useState<string | null>(null);
   const svgRef   = useRef<SVGSVGElement>(null);
   const dragging = useRef(false);
 
-  const cx = 250;
-  const cy = 250;
+  const cx = HALF;
+  const cy = HALF;
 
   const pointerToAngleRadius = useCallback((e: React.PointerEvent<SVGSVGElement>) => {
     const svg = svgRef.current;
     if (!svg) return null;
-    const rect   = svg.getBoundingClientRect();
-    const scaleX = 500 / rect.width;
-    const scaleY = 500 / rect.height;
-    const svgX   = (e.clientX - rect.left)  * scaleX;
-    const svgY   = (e.clientY - rect.top)   * scaleY;
-    const dx = svgX - cx;
-    const dy = svgY - cy;
+    // Convert client (mouse) coordinates to SVG user-space via the element's
+    // own screen transform matrix, rather than manually scaling by
+    // getBoundingClientRect() width/height — the manual approach breaks
+    // whenever the rendered box isn't perfectly square (e.g. any
+    // letterboxing introduced by maxWidth/maxHeight constraints), producing
+    // a subtle click/indicator mismatch. getScreenCTM() accounts for
+    // viewBox scaling, preserveAspectRatio letterboxing, and CSS transforms
+    // automatically.
+    const pt = svg.createSVGPoint();
+    pt.x = e.clientX;
+    pt.y = e.clientY;
+    const ctm = svg.getScreenCTM();
+    if (!ctm) return null;
+    const p = pt.matrixTransform(ctm.inverse());
+    const dx = p.x - cx;
+    const dy = p.y - cy;
     const pxR = Math.sqrt(dx * dx + dy * dy);
     if (pxR < 20) return null;   // ignore the neutral centre
-    const normR = Math.min(1.0, pxR / 220);
-    // atan2 returns standard math angle; convert to wheel convention: wheelDeg = mathDeg + 90
+    const normR = Math.min(1.0, pxR / R3_OUT);
     const angleDeg = Math.atan2(dy, dx) * (180 / Math.PI) + 90;
     return { angleDeg, radius: normR };
   }, []);
@@ -73,199 +110,184 @@ export default function EmotionWheel({ onSelect, selected, indicatorPos, complem
     dragging.current = false;
   };
 
-  // Pixel ring radii
-  const innerR1 = 55;
-  const innerR2 = 105;
-  const midR1 = 105;
-  const midR2 = 165;
-  const outerR1 = 165;
-  const outerR2 = 220;
-  const dyadR1 = 220;
-  const dyadR2 = 242;
+  const families = useMemo(
+    () => EMOTIONS.map((f) => ({
+      ...f,
+      ring2: familyTier(f.id, 'ring2'),
+      ring3: familyTier(f.id, 'ring3'),
+    })),
+    []
+  );
 
   const getHoveredLabel = () => {
-    if (hovered) {
-      const emotion = EMOTIONS.find(e => e.id === hovered.emotionId);
-      if (emotion) return emotion[hovered.intensity].label;
-    }
+    if (hoveredLabel) return hoveredLabel;
     if (selected) {
-      const emotion = EMOTIONS.find(e => e.id === selected.emotionId);
-      if (emotion) return emotion[selected.intensity].label;
+      const node = EMOTION_NODES.find((n) => n.sourceId === selected.emotionId && n.intensity === selected.intensity);
+      if (node) return node.label;
     }
     return null;
   };
 
-  const isSelected = (emotionId: string, intensity: IntensityLevel) =>
-    selected?.emotionId === emotionId && selected?.intensity === intensity;
-  const isHovered = (emotionId: string, intensity: IntensityLevel) =>
-    hovered?.emotionId === emotionId && hovered?.intensity === intensity;
-
   return (
-    <div className="flex flex-col items-center select-none">
+    <div className="flex flex-col items-center select-none" style={{ width: '100%', height: '100%', minHeight: 0 }}>
+      {/* This wrapper — not the svg itself — is what needs a genuinely
+          definite height for the svg's width/height:100% to resolve
+          against; a plain "auto"-sized ancestor makes percentage sizing on
+          the svg silently no-op, so it renders at its full intrinsic 880px
+          regardless of available space. flex:1 + minHeight:0 here gives it
+          one. */}
+      <div style={{ flex: '1 1 auto', minHeight: 0, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <svg
         ref={svgRef}
-        viewBox="0 0 500 500"
-        width="500"
-        height="500"
-        style={{ maxWidth: '100%', maxHeight: '100%', cursor: 'crosshair', touchAction: 'none' }}
+        viewBox={`0 0 ${SIZE} ${SIZE}`}
+        width={SIZE}
+        height={SIZE}
+        style={{ width: '100%', height: '100%', maxWidth: '100%', maxHeight: '100%', cursor: 'crosshair', touchAction: 'none' }}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerLeave={handlePointerUp}
       >
-        {/* Outer ring segments (low intensity) */}
-        {EMOTIONS.map((emotion) => {
-          const startAngle = emotion.angle - 22.5;
-          const endAngle = emotion.angle + 22.5;
-          const d = arcPath(cx, cy, outerR1, outerR2, startAngle, endAngle);
-          const midAngle = emotion.angle;
-          const textPos = textArcPosition(cx, cy, (outerR1 + outerR2) / 2, midAngle);
-          const fill = `hsl(${emotion.hue}, 45%, 65%)`;
-          const sel = isSelected(emotion.id, 'low');
-          const hov = isHovered(emotion.id, 'low');
-          return (
-            <g key={`outer-${emotion.id}`}>
-              <path
-                d={d}
-                fill={fill}
-                opacity={hov ? 0.85 : 1}
-                stroke={sel ? 'white' : 'rgba(13,13,15,0.6)'}
-                strokeWidth={sel ? 2 : 0.8}
-                cursor="pointer"
-                onClick={() => onSelect(emotion.angle, RING_R.low)}
-                onMouseEnter={() => setHovered({ emotionId: emotion.id, intensity: 'low' })}
-                onMouseLeave={() => setHovered(null)}
-              />
-              <text
-                x={textPos.x}
-                y={textPos.y}
-                textAnchor="middle"
-                dominantBaseline="middle"
-                fontSize="7"
-                fill="rgba(255,255,255,0.85)"
-                style={{ pointerEvents: 'none', userSelect: 'none' }}
-                transform={`rotate(${midAngle > 90 && midAngle < 270 ? midAngle + 180 : midAngle}, ${textPos.x}, ${textPos.y})`}
-              >
-                {emotion.low.label}
-              </text>
-            </g>
-          );
-        })}
+        {families.map((family) => {
+          const familyStart = family.angle - FAMILY_SPAN / 2;
+          const familyEnd = family.angle + FAMILY_SPAN / 2;
 
-        {/* Mid ring segments (primary emotions) */}
-        {EMOTIONS.map((emotion) => {
-          const startAngle = emotion.angle - 22.5;
-          const endAngle = emotion.angle + 22.5;
-          const d = arcPath(cx, cy, midR1, midR2, startAngle, endAngle);
-          const midAngle = emotion.angle;
-          const textPos = textArcPosition(cx, cy, (midR1 + midR2) / 2, midAngle);
-          const fill = `hsl(${emotion.hue}, 80%, 50%)`;
-          const sel = isSelected(emotion.id, 'mid');
-          const hov = isHovered(emotion.id, 'mid');
+          const catSpan = FAMILY_SPAN / family.ring2.length;
+          const wordSpan = FAMILY_SPAN / family.ring3.length;
+
+          const hue = family.hue;
+
           return (
-            <g key={`mid-${emotion.id}`}>
+            <g key={family.id}>
+              {/* Ring1 — the core family */}
               <path
-                d={d}
-                fill={fill}
-                opacity={hov ? 0.85 : 1}
-                stroke={sel ? 'white' : 'rgba(13,13,15,0.6)'}
-                strokeWidth={sel ? 2 : 0.8}
+                d={arcPath(cx, cy, R1_IN, R1_OUT, familyStart, familyEnd)}
+                fill={`hsl(${hue}, 78%, 50%)`}
+                opacity={hoveredId === family.id ? 0.85 : 1}
+                stroke={selected?.emotionId === family.id && selected.intensity === 'ring1' ? 'white' : 'rgba(13,13,15,0.6)'}
+                strokeWidth={selected?.emotionId === family.id && selected.intensity === 'ring1' ? 2 : 0.8}
                 cursor="pointer"
-                onClick={() => onSelect(emotion.angle, RING_R.mid)}
-                onMouseEnter={() => setHovered({ emotionId: emotion.id, intensity: 'mid' })}
-                onMouseLeave={() => setHovered(null)}
+                onClick={() => onSelect(family.angle, RING_RADIUS.ring1)}
+                onMouseEnter={() => { setHoveredId(family.id); setHoveredLabel(family.label); }}
+                onMouseLeave={() => { setHoveredId(null); setHoveredLabel(null); }}
               />
               <text
-                x={textPos.x}
-                y={textPos.y}
+                x={polarToCartesian(cx, cy, (R1_IN + R1_OUT) / 2, family.angle).x}
+                y={polarToCartesian(cx, cy, (R1_IN + R1_OUT) / 2, family.angle).y}
                 textAnchor="middle"
                 dominantBaseline="middle"
-                fontSize="8.5"
-                fontWeight="500"
+                fontSize="13"
+                fontWeight="600"
                 fill="rgba(255,255,255,0.95)"
                 style={{ pointerEvents: 'none', userSelect: 'none' }}
-                transform={`rotate(${midAngle > 90 && midAngle < 270 ? midAngle + 180 : midAngle}, ${textPos.x}, ${textPos.y})`}
+                transform={`rotate(${textRotation(family.angle)}, ${polarToCartesian(cx, cy, (R1_IN + R1_OUT) / 2, family.angle).x}, ${polarToCartesian(cx, cy, (R1_IN + R1_OUT) / 2, family.angle).y})`}
               >
-                {emotion.label}
+                {family.label}
               </text>
+
+              {/* Ring2 — sub-categories */}
+              {family.ring2.map((cat, ci) => {
+                const start = familyStart + catSpan * ci;
+                const end = start + catSpan;
+                const mid = start + catSpan / 2;
+                const textPos = polarToCartesian(cx, cy, (R2_IN + R2_OUT) / 2, mid);
+                const hov = hoveredId === cat.id;
+                const sel = selected?.emotionId === family.id && selected.intensity === 'ring2' && getHoveredLabel() === cat.label;
+                return (
+                  <g key={cat.id}>
+                    <path
+                      d={arcPath(cx, cy, R2_IN, R2_OUT, start, end)}
+                      fill={`hsl(${hue}, 58%, 58%)`}
+                      opacity={hov ? 0.85 : 1}
+                      stroke={sel ? 'white' : 'rgba(13,13,15,0.5)'}
+                      strokeWidth={sel ? 1.6 : 0.6}
+                      cursor="pointer"
+                      onClick={() => onSelect(mid, RING_RADIUS.ring2)}
+                      onMouseEnter={() => { setHoveredId(cat.id); setHoveredLabel(cat.label); }}
+                      onMouseLeave={() => { setHoveredId(null); setHoveredLabel(null); }}
+                    />
+                    <text
+                      x={textPos.x}
+                      y={textPos.y}
+                      textAnchor="middle"
+                      dominantBaseline="middle"
+                      fontSize="8"
+                      fontWeight="500"
+                      fill="rgba(20,20,22,0.85)"
+                      style={{ pointerEvents: 'none', userSelect: 'none' }}
+                      transform={`rotate(${textRotation(mid) + 90}, ${textPos.x}, ${textPos.y})`}
+                    >
+                      {cat.label}
+                    </text>
+                  </g>
+                );
+              })}
+
+              {/* Ring3 — specific words, evenly spaced across the family's
+                  full span (not nested per-category) so busy categories
+                  don't collapse into unreadable slivers */}
+              {family.ring3.map((word, wi) => {
+                const start = familyStart + wordSpan * wi;
+                const end = start + wordSpan;
+                const mid = start + wordSpan / 2;
+                const textPos = polarToCartesian(cx, cy, (R3_IN + R3_OUT) / 2, mid);
+                const hov = hoveredId === word.id;
+                return (
+                  <g key={word.id}>
+                    <path
+                      d={arcPath(cx, cy, R3_IN, R3_OUT, start, end)}
+                      fill={`hsl(${hue}, 40%, 72%)`}
+                      opacity={hov ? 0.8 : 1}
+                      stroke="rgba(13,13,15,0.4)"
+                      strokeWidth={0.4}
+                      cursor="pointer"
+                      onClick={() => onSelect(mid, RING_RADIUS.ring3)}
+                      onMouseEnter={() => { setHoveredId(word.id); setHoveredLabel(word.label); }}
+                      onMouseLeave={() => { setHoveredId(null); setHoveredLabel(null); }}
+                    />
+                    <text
+                      x={textPos.x}
+                      y={textPos.y}
+                      textAnchor="middle"
+                      dominantBaseline="middle"
+                      fontSize="6.5"
+                      fill="rgba(18,18,20,0.78)"
+                      style={{ pointerEvents: 'none', userSelect: 'none' }}
+                      transform={`rotate(${textRotation(mid) + 90}, ${textPos.x}, ${textPos.y})`}
+                    >
+                      {word.label}
+                    </text>
+                  </g>
+                );
+              })}
+
+              {/* Seam lines at family boundaries, through all 3 rings */}
+              {(() => {
+                const p1 = polarToCartesian(cx, cy, R1_IN, familyStart);
+                const p2 = polarToCartesian(cx, cy, R3_OUT, familyStart);
+                return (
+                  <line
+                    x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y}
+                    stroke="rgba(13,13,15,0.55)"
+                    strokeWidth={0.9}
+                    style={{ pointerEvents: 'none' }}
+                  />
+                );
+              })()}
             </g>
           );
         })}
 
-        {/* Inner ring segments (high intensity) */}
-        {EMOTIONS.map((emotion) => {
-          const startAngle = emotion.angle - 22.5;
-          const endAngle = emotion.angle + 22.5;
-          const d = arcPath(cx, cy, innerR1, innerR2, startAngle, endAngle);
-          const midAngle = emotion.angle;
-          const textPos = textArcPosition(cx, cy, (innerR1 + innerR2) / 2, midAngle);
-          const fill = `hsl(${emotion.hue}, 100%, 35%)`;
-          const sel = isSelected(emotion.id, 'high');
-          const hov = isHovered(emotion.id, 'high');
-          return (
-            <g key={`inner-${emotion.id}`}>
-              <path
-                d={d}
-                fill={fill}
-                opacity={hov ? 0.85 : 1}
-                stroke={sel ? 'white' : 'rgba(13,13,15,0.6)'}
-                strokeWidth={sel ? 2 : 0.8}
-                cursor="pointer"
-                onClick={() => onSelect(emotion.angle, RING_R.high)}
-                onMouseEnter={() => setHovered({ emotionId: emotion.id, intensity: 'high' })}
-                onMouseLeave={() => setHovered(null)}
-              />
-              <text
-                x={textPos.x}
-                y={textPos.y}
-                textAnchor="middle"
-                dominantBaseline="middle"
-                fontSize="6.5"
-                fill="rgba(255,255,255,0.8)"
-                style={{ pointerEvents: 'none', userSelect: 'none' }}
-                transform={`rotate(${midAngle > 90 && midAngle < 270 ? midAngle + 180 : midAngle}, ${textPos.x}, ${textPos.y})`}
-              >
-                {emotion.high.label}
-              </text>
-            </g>
-          );
-        })}
-
-        {/* Dyad wedge markers */}
-        {DYADS.map((dyad) => {
-          const startAngle = dyad.angle - 11.25;
-          const endAngle = dyad.angle + 11.25;
-          const d = arcPath(cx, cy, dyadR1, dyadR2, startAngle, endAngle);
-          const textPos = textArcPosition(cx, cy, dyadR2 + 10, dyad.angle);
-          return (
-            <g key={`dyad-${dyad.id}`}>
-              <path
-                d={d}
-                fill="rgba(255,255,255,0.12)"
-                stroke="rgba(255,255,255,0.08)"
-                strokeWidth={0.5}
-              />
-              <text
-                x={textPos.x}
-                y={textPos.y}
-                textAnchor="middle"
-                dominantBaseline="middle"
-                fontSize="6"
-                fill="rgba(255,255,255,0.45)"
-                style={{ pointerEvents: 'none', userSelect: 'none' }}
-                transform={`rotate(${dyad.angle > 90 && dyad.angle < 270 ? dyad.angle + 180 : dyad.angle}, ${textPos.x}, ${textPos.y})`}
-              >
-                {dyad.label}
-              </text>
-            </g>
-          );
-        })}
+        {/* Ring seam circles */}
+        {[R1_OUT, R2_OUT].map((r) => (
+          <circle key={r} cx={cx} cy={cy} r={r} fill="none" stroke="rgba(13,13,15,0.35)" strokeWidth={0.6} style={{ pointerEvents: 'none' }} />
+        ))}
 
         {/* Center neutral zone */}
         <circle
           cx={cx}
           cy={cy}
-          r={innerR1}
+          r={R_NEUTRAL}
           fill="rgba(255,255,255,0.06)"
           stroke="rgba(255,255,255,0.15)"
           strokeWidth={1}
@@ -275,37 +297,18 @@ export default function EmotionWheel({ onSelect, selected, indicatorPos, complem
           y={cy}
           textAnchor="middle"
           dominantBaseline="middle"
-          fontSize="8"
+          fontSize="9"
           fill="rgba(255,255,255,0.4)"
           style={{ pointerEvents: 'none', userSelect: 'none' }}
         >
           neutral
         </text>
 
-        {/* Seam lines between segments */}
-        {EMOTIONS.map((emotion) => {
-          const angle = emotion.angle - 22.5;
-          const p1 = polarToCartesian(cx, cy, innerR1, angle);
-          const p2 = polarToCartesian(cx, cy, dyadR2, angle);
-          return (
-            <line
-              key={`seam-${emotion.id}`}
-              x1={p1.x}
-              y1={p1.y}
-              x2={p2.x}
-              y2={p2.y}
-              stroke="rgba(13,13,15,0.5)"
-              strokeWidth={0.8}
-              style={{ pointerEvents: 'none' }}
-            />
-          );
-        })}
-
         {/* Ghost indicator — complement position (dimmer, no pulse) */}
         {complementPos && (() => {
           const rad = (complementPos.angleDeg - 90) * (Math.PI / 180);
-          const gx  = cx + complementPos.radius * 220 * Math.cos(rad);
-          const gy  = cy + complementPos.radius * 220 * Math.sin(rad);
+          const gx  = cx + complementPos.radius * R3_OUT * Math.cos(rad);
+          const gy  = cy + complementPos.radius * R3_OUT * Math.sin(rad);
           return (
             <g style={{ pointerEvents: 'none' }}>
               <motion.circle
@@ -330,11 +333,10 @@ export default function EmotionWheel({ onSelect, selected, indicatorPos, complem
         {/* Animated indicator dot — follows (angleDeg, radius) of the selection */}
         {indicatorPos && (() => {
           const rad  = (indicatorPos.angleDeg - 90) * (Math.PI / 180);
-          const ix   = cx + indicatorPos.radius * 220 * Math.cos(rad);
-          const iy   = cy + indicatorPos.radius * 220 * Math.sin(rad);
+          const ix   = cx + indicatorPos.radius * R3_OUT * Math.cos(rad);
+          const iy   = cy + indicatorPos.radius * R3_OUT * Math.sin(rad);
           return (
             <g style={{ pointerEvents: 'none' }}>
-              {/* Outer pulse ring */}
               <motion.circle
                 cx={ix} cy={iy} r={12}
                 fill="none"
@@ -347,7 +349,6 @@ export default function EmotionWheel({ onSelect, selected, indicatorPos, complem
                   r:  { duration: 1.8, repeat: Infinity, ease: 'easeInOut' },
                 }}
               />
-              {/* Inner dot */}
               <motion.circle
                 cx={ix} cy={iy} r={5}
                 fill="rgba(255,255,255,0.9)"
@@ -361,6 +362,7 @@ export default function EmotionWheel({ onSelect, selected, indicatorPos, complem
           );
         })()}
       </svg>
+      </div>
 
       {/* Tooltip below wheel */}
       <div

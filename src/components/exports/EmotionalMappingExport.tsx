@@ -11,6 +11,14 @@ const CX = SIZE / 2;
 const CY = SIZE / 2;
 const MAX_R = 180;
 
+// Dark ink on a white chart — same opacity ladder the dark theme used,
+// just inverted, so relative emphasis is unchanged.
+const INK_STRONG = 'rgba(20,18,16,0.85)';
+const INK_MED = 'rgba(20,18,16,0.55)';
+const INK_FAINT = 'rgba(20,18,16,0.4)';
+const INK_LINE = 'rgba(20,18,16,0.14)';
+const INK_LINE_FAINT = 'rgba(20,18,16,0.10)';
+
 function toXY(angleDeg: number, radiusNorm: number): [number, number] {
   const rad = ((angleDeg - 90) * Math.PI) / 180;
   return [CX + Math.cos(rad) * radiusNorm * MAX_R, CY + Math.sin(rad) * radiusNorm * MAX_R];
@@ -21,11 +29,11 @@ function ChartRings() {
   return (
     <>
       {rings.map((r) => (
-        <circle key={r} cx={CX} cy={CY} r={r * MAX_R} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth={1} />
+        <circle key={r} cx={CX} cy={CY} r={r * MAX_R} fill="none" stroke={INK_LINE} strokeWidth={1} />
       ))}
-      <line x1={CX} y1={CY - MAX_R} x2={CX} y2={CY + MAX_R} stroke="rgba(255,255,255,0.06)" />
-      <line x1={CX - MAX_R} y1={CY} x2={CX + MAX_R} y2={CY} stroke="rgba(255,255,255,0.06)" />
-      <circle cx={CX} cy={CY} r={3} fill="rgba(255,255,255,0.3)" />
+      <line x1={CX} y1={CY - MAX_R} x2={CX} y2={CY + MAX_R} stroke={INK_LINE_FAINT} />
+      <line x1={CX - MAX_R} y1={CY} x2={CX + MAX_R} y2={CY} stroke={INK_LINE_FAINT} />
+      <circle cx={CX} cy={CY} r={3} fill={INK_MED} />
     </>
   );
 }
@@ -34,15 +42,20 @@ function ChartRings() {
 // labelled bubble, with a couple of small unlabelled bubbles per selection
 // gesturing at the rest of that blend. Deliberately spare: with up to 8
 // selections, full per-selection detail here would be unreadable — that
-// detail lives in the per-selection charts below instead.
-function OverviewChart({ points }: { points: OverviewRadarPoint[] }) {
+// detail lives in the per-selection charts below instead. Self-contained
+// with its own download, same as the other export tabs' overview sections.
+const OverviewChart = React.forwardRef<HTMLDivElement, { points: OverviewRadarPoint[] }>(function OverviewChart(
+  { points },
+  ref
+) {
   return (
     <div
+      ref={ref}
       style={{
         width: '100%',
         maxWidth: `${SIZE}px`,
         aspectRatio: '1 / 1',
-        background: '#0d0d0f',
+        background: '#ffffff',
         borderRadius: '4px',
         padding: '12px',
         margin: '0 auto',
@@ -59,8 +72,8 @@ function OverviewChart({ points }: { points: OverviewRadarPoint[] }) {
               cx={x}
               cy={y}
               r={4}
-              fill={`hsl(${p.hue}, 55%, 55%)`}
-              opacity={0.35}
+              fill={`hsl(${p.hue}, 55%, 45%)`}
+              opacity={0.45}
             />
           );
         })}
@@ -69,7 +82,7 @@ function OverviewChart({ points }: { points: OverviewRadarPoint[] }) {
           const r = 14 + (p.weightPct ?? 0) * 0.22;
           return (
             <g key={`choice-${p.selectionId}`}>
-              <circle cx={x} cy={y} r={r} fill={`hsl(${p.hue}, 70%, 55%)`} stroke={`hsl(${p.hue}, 80%, 70%)`} strokeWidth={1.5} opacity={0.9} />
+              <circle cx={x} cy={y} r={r} fill={`hsl(${p.hue}, 65%, 45%)`} stroke={`hsl(${p.hue}, 75%, 32%)`} strokeWidth={1.5} opacity={0.92} />
               <text
                 x={x}
                 y={y - r - 8}
@@ -77,7 +90,7 @@ function OverviewChart({ points }: { points: OverviewRadarPoint[] }) {
                 fontFamily="'Cormorant Garamond', serif"
                 fontStyle="italic"
                 fontSize={15}
-                fill="rgba(255,255,255,0.9)"
+                fill={INK_STRONG}
               >
                 {p.label}
               </text>
@@ -87,7 +100,7 @@ function OverviewChart({ points }: { points: OverviewRadarPoint[] }) {
       </svg>
     </div>
   );
-}
+});
 
 // The original single-selection chart, unchanged — repeated once per
 // selection underneath the overview. Ref-forwardable so the single-selection
@@ -103,7 +116,7 @@ const SelectionChart = React.forwardRef<HTMLDivElement, { points: RadarPoint[] }
         width: '100%',
         maxWidth: `${SIZE}px`,
         aspectRatio: '1 / 1',
-        background: '#0d0d0f',
+        background: '#ffffff',
         borderRadius: '4px',
         padding: '12px',
         margin: '0 auto',
@@ -115,8 +128,8 @@ const SelectionChart = React.forwardRef<HTMLDivElement, { points: RadarPoint[] }
           const [x, y] = toXY(p.angleDeg, p.radiusNorm);
           const isComp = p.kind === 'complementary';
           const r = isComp ? 10 + (p.weightPct ?? 0) * 0.35 : 9;
-          const fill = isComp ? `hsl(${p.hue}, 70%, 55%)` : 'rgba(255,255,255,0.06)';
-          const stroke = isComp ? `hsl(${p.hue}, 80%, 70%)` : 'rgba(255,255,255,0.35)';
+          const fill = isComp ? `hsl(${p.hue}, 65%, 45%)` : 'rgba(20,18,16,0.05)';
+          const stroke = isComp ? `hsl(${p.hue}, 75%, 32%)` : 'rgba(20,18,16,0.4)';
           return (
             <g key={p.label + p.kind}>
               <circle
@@ -127,7 +140,7 @@ const SelectionChart = React.forwardRef<HTMLDivElement, { points: RadarPoint[] }
                 stroke={stroke}
                 strokeWidth={isComp ? 0 : 1}
                 strokeDasharray={isComp ? undefined : '2,2'}
-                opacity={isComp ? 0.85 : 0.7}
+                opacity={isComp ? 0.92 : 0.85}
               />
               <text
                 x={x}
@@ -136,7 +149,7 @@ const SelectionChart = React.forwardRef<HTMLDivElement, { points: RadarPoint[] }
                 fontFamily="'Cormorant Garamond', serif"
                 fontStyle="italic"
                 fontSize={isComp ? 15 : 12}
-                fill={isComp ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.45)'}
+                fill={isComp ? INK_STRONG : INK_MED}
               >
                 {p.label}
               </text>
@@ -148,7 +161,7 @@ const SelectionChart = React.forwardRef<HTMLDivElement, { points: RadarPoint[] }
                   fontFamily="'Inter', sans-serif"
                   fontSize={9}
                   letterSpacing="0.05em"
-                  fill="rgba(255,255,255,0.4)"
+                  fill={INK_FAINT}
                 >
                   {p.weightPct}%
                 </text>
@@ -169,7 +182,7 @@ const SelectionChart = React.forwardRef<HTMLDivElement, { points: RadarPoint[] }
           fontSize: '10px',
           letterSpacing: '0.1em',
           textTransform: 'uppercase',
-          color: 'rgba(232,228,222,0.4)',
+          color: INK_FAINT,
         }}
       >
         <span>● complementary</span>
@@ -192,7 +205,7 @@ function SelectionMappingRow({ index, selection }: { index: number; selection: S
           fontSize: '10px',
           letterSpacing: '0.12em',
           textTransform: 'uppercase',
-          color: 'rgba(232,228,222,0.4)',
+          color: INK_FAINT,
           marginBottom: '8px',
           textAlign: 'center',
         }}
@@ -200,7 +213,24 @@ function SelectionMappingRow({ index, selection }: { index: number; selection: S
         {index + 1} · {selection.variant.label}
       </div>
       <SelectionChart ref={ref} points={deriveRadarData(selection.blend)} />
-      <DownloadBar targetRef={ref} filename={`emotional-mapping-${index + 1}-${selection.variant.label.toLowerCase()}`} />
+      <DownloadBar
+        targetRef={ref}
+        filename={`emotional-mapping-${index + 1}-${selection.variant.label.toLowerCase()}`}
+        theme="light"
+      />
+    </div>
+  );
+}
+
+// The combined overview field, self-contained with its own download —
+// mirrors Emotional Palette's overview row, which already had one.
+function OverviewSection({ selections }: { selections: SelectionEntry[] }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const overviewPoints = deriveOverviewRadarData(selections);
+  return (
+    <div>
+      <OverviewChart ref={ref} points={overviewPoints} />
+      <DownloadBar targetRef={ref} filename="emotional-mapping-overview" label="Overview" theme="light" />
     </div>
   );
 }
@@ -220,11 +250,9 @@ export default function EmotionalMappingExport({ selections }: EmotionalMappingE
     );
   }
 
-  const overviewPoints = deriveOverviewRadarData(selections);
-
   return (
     <div>
-      <div ref={ref} style={{ background: '#0d0d0f', borderRadius: '4px', padding: '20px' }}>
+      <div ref={ref} style={{ background: '#ffffff', borderRadius: '4px', padding: '20px' }}>
         <div
           style={{
             fontFamily: "'Inter', sans-serif",
@@ -232,13 +260,13 @@ export default function EmotionalMappingExport({ selections }: EmotionalMappingE
             fontSize: '10px',
             letterSpacing: '0.14em',
             textTransform: 'uppercase',
-            color: 'rgba(232,228,222,0.4)',
+            color: INK_FAINT,
             marginBottom: '12px',
           }}
         >
           Overview
         </div>
-        <OverviewChart points={overviewPoints} />
+        <OverviewSection selections={selections} />
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '36px', marginTop: '32px' }}>
           {selections.map((s, i) => (

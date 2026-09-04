@@ -5,10 +5,16 @@ interface DownloadBarProps {
   targetRef: React.RefObject<HTMLElement>;
   filename: string;
   label?: string;
+  // 'dark' (default) is light-ink-on-dark, for the app's usual dark
+  // surroundings. 'light' is dark-ink-on-light, for the white/cream export
+  // rows (Multisensory Map, Emotional Mapping, Emotional Palette cards) —
+  // the default styling disappears against a white background otherwise.
+  theme?: 'dark' | 'light';
 }
 
-export default function DownloadBar({ targetRef, filename, label }: DownloadBarProps) {
+export default function DownloadBar({ targetRef, filename, label, theme = 'dark' }: DownloadBarProps) {
   const [busy, setBusy] = useState<'png' | 'jpeg' | null>(null);
+  const isLight = theme === 'light';
 
   const handleDownload = async (format: 'png' | 'jpeg') => {
     if (!targetRef.current || busy) return;
@@ -37,7 +43,7 @@ export default function DownloadBar({ targetRef, filename, label }: DownloadBarP
             fontSize: '10px',
             letterSpacing: '0.1em',
             textTransform: 'uppercase',
-            color: 'rgba(232,228,222,0.35)',
+            color: isLight ? 'rgba(20,18,16,0.4)' : 'rgba(232,228,222,0.35)',
             marginRight: 'auto',
           }}
         >
@@ -50,11 +56,11 @@ export default function DownloadBar({ targetRef, filename, label }: DownloadBarP
           onClick={() => handleDownload(fmt)}
           disabled={busy !== null}
           style={{
-            background: 'rgba(255,255,255,0.05)',
-            border: '1px solid rgba(255,255,255,0.14)',
+            background: isLight ? 'rgba(20,18,16,0.05)' : 'rgba(255,255,255,0.05)',
+            border: isLight ? '1px solid rgba(20,18,16,0.18)' : '1px solid rgba(255,255,255,0.14)',
             borderRadius: '3px',
             padding: '7px 14px',
-            color: 'rgba(232,228,222,0.75)',
+            color: isLight ? 'rgba(20,18,16,0.8)' : 'rgba(232,228,222,0.75)',
             fontFamily: "'Inter', sans-serif",
             fontWeight: 400,
             fontSize: '11px',
