@@ -38,69 +38,141 @@ function ChartRings() {
   );
 }
 
+// Compact left-hand text column for the overview, where a full selection-
+// by-selection breakdown (like the per-selection PointList below) would run
+// to dozens of rows — every complementary/opposing emotion across every
+// selection, deduplicated, read as one wrapped line per heading rather than
+// one row per item, so the full list fits without turning into a wall of
+// bullets.
+function FlowList({ title, points }: { title: string; points: RadarPoint[] }) {
+  return (
+    <div style={{ marginBottom: '22px' }}>
+      <div
+        style={{
+          fontFamily: "'Inter', sans-serif",
+          fontWeight: 700,
+          fontSize: '13px',
+          letterSpacing: '0.06em',
+          textTransform: 'uppercase',
+          color: INK_STRONG,
+          paddingBottom: '6px',
+          marginBottom: '8px',
+          borderBottom: `1.5px solid ${INK_STRONG}`,
+        }}
+      >
+        {title}
+      </div>
+      <div style={{ fontFamily: "'Inter', sans-serif", fontSize: '12px', lineHeight: 1.8 }}>
+        {points.length === 0 ? (
+          <span style={{ color: INK_FAINT, fontStyle: 'italic' }}>none</span>
+        ) : (
+          points.map((p, i) => (
+            <span key={p.label}>
+              <span style={{ color: `hsl(${p.hue}, 60%, 36%)`, fontWeight: 500 }}>{p.label}</span>
+              {i < points.length - 1 && <span style={{ color: INK_FAINT }}>, </span>}
+            </span>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
 // The combined field — every selection's dominant "choice" as a large,
 // labelled bubble, with a couple of small unlabelled bubbles per selection
-// gesturing at the rest of that blend. Deliberately spare: with up to 8
-// selections, full per-selection detail here would be unreadable — that
-// detail lives in the per-selection charts below instead. Self-contained
-// with its own download, same as the other export tabs' overview sections.
-const OverviewChart = React.forwardRef<HTMLDivElement, { points: OverviewRadarPoint[] }>(function OverviewChart(
-  { points },
-  ref
-) {
+// gesturing at the rest of that blend, plus a compact text column reading
+// out the full complementary/opposing set across every selection (see
+// FlowList). The chart itself stays spare — with up to 8 selections, full
+// per-selection detail plotted here would be unreadable — that detail lives
+// in the per-selection charts below instead. Self-contained with its own
+// download, same as the other export tabs' overview sections.
+const OverviewChart = React.forwardRef<
+  HTMLDivElement,
+  { points: OverviewRadarPoint[]; complementary: RadarPoint[]; opposing: RadarPoint[] }
+>(function OverviewChart({ points, complementary, opposing }, ref) {
   return (
     <div
       ref={ref}
       style={{
+        display: 'flex',
+        gap: '28px',
         width: '100%',
-        maxWidth: `${SIZE}px`,
-        aspectRatio: '1 / 1',
+        maxWidth: `${SIZE + 200}px`,
         background: '#ffffff',
         borderRadius: '4px',
-        padding: '12px',
+        padding: '20px',
         margin: '0 auto',
       }}
     >
-      <svg viewBox={`0 0 ${SIZE} ${SIZE}`} width="100%" height="100%">
-        <ChartRings />
-        {/* Minor bubbles first, so choice bubbles + labels always sit on top */}
-        {points.filter((p) => !p.isChoice).map((p, i) => {
-          const [x, y] = toXY(p.angleDeg, p.radiusNorm);
-          return (
-            <circle
-              key={`minor-${p.selectionId}-${i}`}
-              cx={x}
-              cy={y}
-              r={4}
-              fill={`hsl(${p.hue}, 55%, 45%)`}
-              opacity={0.45}
-            />
-          );
-        })}
-        {points.filter((p) => p.isChoice).map((p) => {
-          const [x, y] = toXY(p.angleDeg, p.radiusNorm);
-          const r = 14 + (p.weightPct ?? 0) * 0.22;
-          return (
-            <g key={`choice-${p.selectionId}`}>
-              <circle cx={x} cy={y} r={r} fill={`hsl(${p.hue}, 65%, 45%)`} stroke={`hsl(${p.hue}, 75%, 32%)`} strokeWidth={1.5} opacity={0.92} />
-              <text
-                x={x}
-                y={y - r - 8}
-                textAnchor="middle"
-                fontFamily="'Cormorant Garamond', serif"
-                fontStyle="italic"
-                fontSize={15}
-                fill={INK_STRONG}
-              >
-                {p.label}
-              </text>
-            </g>
-          );
-        })}
-      </svg>
+      <div style={{ width: '180px', flexShrink: 0, paddingTop: '4px' }}>
+        <FlowList title="Complementary" points={complementary} />
+        <FlowList title="Opposing" points={opposing} />
+      </div>
+
+      <div style={{ flex: '1 1 0', minWidth: 0, aspectRatio: '1 / 1' }}>
+        <svg viewBox={`0 0 ${SIZE} ${SIZE}`} width="100%" height="100%">
+          <ChartRings />
+          {/* Minor bubbles first, so choice bubbles + labels always sit on top */}
+          {points.filter((p) => !p.isChoice).map((p, i) => {
+            const [x, y] = toXY(p.angleDeg, p.radiusNorm);
+            return (
+              <circle
+                key={`minor-${p.selectionId}-${i}`}
+                cx={x}
+                cy={y}
+                r={4}
+                fill={`hsl(${p.hue}, 55%, 45%)`}
+                opacity={0.45}
+              />
+            );
+          })}
+          {points.filter((p) => p.isChoice).map((p) => {
+            const [x, y] = toXY(p.angleDeg, p.radiusNorm);
+            const r = 14 + (p.weightPct ?? 0) * 0.22;
+            return (
+              <g key={`choice-${p.selectionId}`}>
+                <circle cx={x} cy={y} r={r} fill={`hsl(${p.hue}, 65%, 45%)`} stroke={`hsl(${p.hue}, 75%, 32%)`} strokeWidth={1.5} opacity={0.92} />
+                <text
+                  x={x}
+                  y={y - r - 8}
+                  textAnchor="middle"
+                  fontFamily="'Cormorant Garamond', serif"
+                  fontStyle="italic"
+                  fontSize={15}
+                  fill={INK_STRONG}
+                >
+                  {p.label}
+                </text>
+              </g>
+            );
+          })}
+        </svg>
+      </div>
     </div>
   );
 });
+
+// Pools every selection's complementary/opposing points into one
+// deduplicated set each — the full list the overview needs, without
+// repeating an emotion once per selection that happens to share it. Ties
+// go to the highest weight seen for that label.
+function aggregateComplementaryOpposing(selections: SelectionEntry[]): { complementary: RadarPoint[]; opposing: RadarPoint[] } {
+  const compMap = new Map<string, RadarPoint>();
+  const oppMap = new Map<string, RadarPoint>();
+  for (const s of selections) {
+    for (const p of deriveRadarData(s.blend)) {
+      const map = p.kind === 'complementary' ? compMap : oppMap;
+      const existing = map.get(p.label);
+      if (!existing || (p.weightPct ?? 0) > (existing.weightPct ?? 0)) {
+        map.set(p.label, p);
+      }
+    }
+  }
+  return {
+    complementary: [...compMap.values()].sort((a, b) => (b.weightPct ?? 0) - (a.weightPct ?? 0)),
+    opposing: [...oppMap.values()].sort((a, b) => a.label.localeCompare(b.label)),
+  };
+}
 
 // Left-hand text column — the same complementary/opposing points the chart
 // plots, read out as two plain lists rather than requiring the chart's
@@ -288,9 +360,10 @@ function SelectionMappingRow({ index, selection }: { index: number; selection: S
 function OverviewSection({ selections }: { selections: SelectionEntry[] }) {
   const ref = useRef<HTMLDivElement>(null);
   const overviewPoints = deriveOverviewRadarData(selections);
+  const { complementary, opposing } = aggregateComplementaryOpposing(selections);
   return (
     <div>
-      <OverviewChart ref={ref} points={overviewPoints} />
+      <OverviewChart ref={ref} points={overviewPoints} complementary={complementary} opposing={opposing} />
       <DownloadBar targetRef={ref} filename="emotional-mapping-overview" label="Overview" theme="light" />
     </div>
   );
