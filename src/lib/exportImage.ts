@@ -7,9 +7,13 @@ export async function downloadNodeAsImage(
   filename: string,
   format: 'png' | 'jpeg' = 'png'
 ): Promise<void> {
+  // JPEG has no alpha channel, so html-to-image needs an opaque fallback for
+  // any transparent pixel (mainly rounded-corner anti-aliasing fringe, since
+  // every export already paints its own full-bleed background). Every
+  // export tab is white/cream now, so '#ffffff' is the correct fallback.
   const options = {
     pixelRatio: 2,
-    backgroundColor: format === 'jpeg' ? '#0d0d0f' : undefined,
+    backgroundColor: format === 'jpeg' ? '#ffffff' : undefined,
     cacheBust: true,
   };
 

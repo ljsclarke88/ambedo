@@ -102,91 +102,152 @@ const OverviewChart = React.forwardRef<HTMLDivElement, { points: OverviewRadarPo
   );
 });
 
-// The original single-selection chart, unchanged — repeated once per
-// selection underneath the overview. Ref-forwardable so the single-selection
-// case below can attach the export ref directly to it.
+// Left-hand text column — the same complementary/opposing points the chart
+// plots, read out as two plain lists rather than requiring the chart's
+// bubbles/dashes to be decoded.
+function PointList({ title, points }: { title: string; points: RadarPoint[] }) {
+  return (
+    <div style={{ marginBottom: '28px' }}>
+      <div
+        style={{
+          fontFamily: "'Inter', sans-serif",
+          fontWeight: 700,
+          fontSize: '13px',
+          letterSpacing: '0.06em',
+          textTransform: 'uppercase',
+          color: INK_STRONG,
+          paddingBottom: '6px',
+          marginBottom: '10px',
+          borderBottom: `1.5px solid ${INK_STRONG}`,
+        }}
+      >
+        {title}
+      </div>
+      <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: '7px' }}>
+        {points.map((p) => (
+          <li
+            key={p.label}
+            style={{
+              display: 'flex',
+              alignItems: 'baseline',
+              gap: '7px',
+              fontFamily: "'Inter', sans-serif",
+              fontWeight: 400,
+              fontSize: '12px',
+              color: INK_MED,
+            }}
+          >
+            <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: `hsl(${p.hue}, 60%, 45%)`, flexShrink: 0 }} />
+            <span>{p.label}</span>
+            {p.weightPct !== null && (
+              <span style={{ color: INK_FAINT, fontSize: '10px', marginLeft: 'auto' }}>{p.weightPct}%</span>
+            )}
+          </li>
+        ))}
+        {points.length === 0 && (
+          <li style={{ fontFamily: "'Inter', sans-serif", fontSize: '11px', color: INK_FAINT, fontStyle: 'italic' }}>none</li>
+        )}
+      </ul>
+    </div>
+  );
+}
+
+// The original single-selection chart — a text column reading out the same
+// complementary/opposing points to the left of the radar plot, matching the
+// reference layout. Ref-forwardable so the single-selection case below can
+// attach the export ref directly to it.
 const SelectionChart = React.forwardRef<HTMLDivElement, { points: RadarPoint[] }>(function SelectionChart(
   { points },
   ref
 ) {
+  const complementary = points.filter((p) => p.kind === 'complementary');
+  const opposing = points.filter((p) => p.kind === 'opposing');
   return (
     <div
       ref={ref}
       style={{
+        display: 'flex',
+        gap: '28px',
         width: '100%',
-        maxWidth: `${SIZE}px`,
-        aspectRatio: '1 / 1',
+        maxWidth: `${SIZE + 200}px`,
         background: '#ffffff',
         borderRadius: '4px',
-        padding: '12px',
+        padding: '20px',
         margin: '0 auto',
       }}
     >
-      <svg viewBox={`0 0 ${SIZE} ${SIZE}`} width="100%" height="100%">
-        <ChartRings />
-        {points.map((p) => {
-          const [x, y] = toXY(p.angleDeg, p.radiusNorm);
-          const isComp = p.kind === 'complementary';
-          const r = isComp ? 10 + (p.weightPct ?? 0) * 0.35 : 9;
-          const fill = isComp ? `hsl(${p.hue}, 65%, 45%)` : 'rgba(20,18,16,0.05)';
-          const stroke = isComp ? `hsl(${p.hue}, 75%, 32%)` : 'rgba(20,18,16,0.4)';
-          return (
-            <g key={p.label + p.kind}>
-              <circle
-                cx={x}
-                cy={y}
-                r={r}
-                fill={fill}
-                stroke={stroke}
-                strokeWidth={isComp ? 0 : 1}
-                strokeDasharray={isComp ? undefined : '2,2'}
-                opacity={isComp ? 0.92 : 0.85}
-              />
-              <text
-                x={x}
-                y={y - r - 8}
-                textAnchor="middle"
-                fontFamily="'Cormorant Garamond', serif"
-                fontStyle="italic"
-                fontSize={isComp ? 15 : 12}
-                fill={isComp ? INK_STRONG : INK_MED}
-              >
-                {p.label}
-              </text>
-              {p.weightPct !== null && (
+      <div style={{ width: '180px', flexShrink: 0, paddingTop: '4px' }}>
+        <PointList title="Complementary" points={complementary} />
+        <PointList title="Opposing" points={opposing} />
+      </div>
+
+      <div style={{ flex: '1 1 0', minWidth: 0 }}>
+        <svg viewBox={`0 0 ${SIZE} ${SIZE}`} width="100%" height="100%" style={{ aspectRatio: '1 / 1', display: 'block' }}>
+          <ChartRings />
+          {points.map((p) => {
+            const [x, y] = toXY(p.angleDeg, p.radiusNorm);
+            const isComp = p.kind === 'complementary';
+            const r = isComp ? 10 + (p.weightPct ?? 0) * 0.35 : 9;
+            const fill = isComp ? `hsl(${p.hue}, 65%, 45%)` : 'rgba(20,18,16,0.05)';
+            const stroke = isComp ? `hsl(${p.hue}, 75%, 32%)` : 'rgba(20,18,16,0.4)';
+            return (
+              <g key={p.label + p.kind}>
+                <circle
+                  cx={x}
+                  cy={y}
+                  r={r}
+                  fill={fill}
+                  stroke={stroke}
+                  strokeWidth={isComp ? 0 : 1}
+                  strokeDasharray={isComp ? undefined : '2,2'}
+                  opacity={isComp ? 0.92 : 0.85}
+                />
                 <text
                   x={x}
-                  y={y + r + 14}
+                  y={y - r - 8}
                   textAnchor="middle"
-                  fontFamily="'Inter', sans-serif"
-                  fontSize={9}
-                  letterSpacing="0.05em"
-                  fill={INK_FAINT}
+                  fontFamily="'Cormorant Garamond', serif"
+                  fontStyle="italic"
+                  fontSize={isComp ? 15 : 12}
+                  fill={isComp ? INK_STRONG : INK_MED}
                 >
-                  {p.weightPct}%
+                  {p.label}
                 </text>
-              )}
-            </g>
-          );
-        })}
-      </svg>
+                {p.weightPct !== null && (
+                  <text
+                    x={x}
+                    y={y + r + 14}
+                    textAnchor="middle"
+                    fontFamily="'Inter', sans-serif"
+                    fontSize={9}
+                    letterSpacing="0.05em"
+                    fill={INK_FAINT}
+                  >
+                    {p.weightPct}%
+                  </text>
+                )}
+              </g>
+            );
+          })}
+        </svg>
 
-      <div
-        style={{
-          display: 'flex',
-          gap: '18px',
-          justifyContent: 'center',
-          marginTop: '6px',
-          fontFamily: "'Inter', sans-serif",
-          fontWeight: 300,
-          fontSize: '10px',
-          letterSpacing: '0.1em',
-          textTransform: 'uppercase',
-          color: INK_FAINT,
-        }}
-      >
-        <span>● complementary</span>
-        <span>◌ opposing</span>
+        <div
+          style={{
+            display: 'flex',
+            gap: '18px',
+            justifyContent: 'center',
+            marginTop: '6px',
+            fontFamily: "'Inter', sans-serif",
+            fontWeight: 300,
+            fontSize: '10px',
+            letterSpacing: '0.1em',
+            textTransform: 'uppercase',
+            color: INK_FAINT,
+          }}
+        >
+          <span>● complementary</span>
+          <span>◌ opposing</span>
+        </div>
       </div>
     </div>
   );

@@ -92,7 +92,7 @@ function EmotionCard({
           position: 'relative',
           fontFamily: "'Inter', sans-serif",
           fontWeight: 400,
-          fontSize: '9px',
+          fontSize: '11px',
           letterSpacing: '0.12em',
           textTransform: 'uppercase',
           color: 'rgba(255,255,255,0.5)',
@@ -106,7 +106,7 @@ function EmotionCard({
           position: 'relative',
           fontFamily: "'Inter', sans-serif",
           fontWeight: 700,
-          fontSize: half ? 'clamp(12px, 1.3vw, 15px)' : 'clamp(13px, 1.5vw, 18px)',
+          fontSize: half ? 'clamp(15px, 1.6vw, 19px)' : 'clamp(16px, 1.9vw, 23px)',
           letterSpacing: '0.02em',
           textTransform: 'uppercase',
           color: 'rgba(255,255,255,0.96)',
@@ -124,7 +124,7 @@ function EmotionCard({
             fontFamily: "'Cormorant Garamond', serif",
             fontStyle: 'italic',
             fontWeight: 400,
-            fontSize: '12px',
+            fontSize: '15px',
             color: 'rgba(255,255,255,0.7)',
             letterSpacing: '0.01em',
           }}
@@ -151,7 +151,7 @@ const PaletteCardRow = React.forwardRef<HTMLDivElement, { cards: EmotionCardData
     <div
       ref={ref}
       style={{
-        background: '#f4f1ec',
+        background: '#ffffff',
         padding: '30px 26px',
         borderRadius: '2px',
       }}
@@ -232,14 +232,14 @@ function OverviewRow({ selections }: { selections: SelectionEntry[] }) {
           fontSize: '10px',
           letterSpacing: '0.14em',
           textTransform: 'uppercase',
-          color: 'rgba(232,228,222,0.4)',
+          color: 'rgba(20,18,16,0.4)',
           marginBottom: '12px',
         }}
       >
         Overview
       </div>
       <PaletteCardRow ref={ref} cards={cards} />
-      <DownloadBar targetRef={ref} filename="emotional-palette-overview" label="Overview" />
+      <DownloadBar targetRef={ref} filename="emotional-palette-overview" label="Overview" theme="light" />
     </div>
   );
 }
@@ -260,7 +260,7 @@ function SelectionPaletteRow({ index, selection }: { index: number; selection: S
           fontSize: '10px',
           letterSpacing: '0.12em',
           textTransform: 'uppercase',
-          color: 'rgba(232,228,222,0.4)',
+          color: 'rgba(20,18,16,0.4)',
           marginBottom: '8px',
         }}
       >
@@ -270,6 +270,7 @@ function SelectionPaletteRow({ index, selection }: { index: number; selection: S
       <DownloadBar
         targetRef={ref}
         filename={`emotional-palette-${index + 1}-${selection.variant.label.toLowerCase()}`}
+        theme="light"
       />
     </div>
   );
@@ -288,14 +289,14 @@ export default function EmotionalPaletteExport({ selections }: EmotionalPaletteE
     return (
       <div>
         <PaletteCardRow ref={ref} cards={panelsToCards(panels)} />
-        <DownloadBar targetRef={ref} filename="emotional-palette" label="Emotional Palette" />
+        <DownloadBar targetRef={ref} filename="emotional-palette" label="Emotional Palette" theme="light" />
       </div>
     );
   }
 
   return (
     <div>
-      <div ref={ref} style={{ background: '#0d0d0f', borderRadius: '4px', padding: '20px' }}>
+      <div ref={ref} style={{ background: '#ffffff', borderRadius: '4px', padding: '20px' }}>
         <OverviewRow selections={selections} />
 
         {/* One full breakdown row per selection */}
@@ -305,7 +306,7 @@ export default function EmotionalPaletteExport({ selections }: EmotionalPaletteE
           ))}
         </div>
       </div>
-      <DownloadBar targetRef={ref} filename="emotional-palette" label="Emotional Palette" />
+      <DownloadBar targetRef={ref} filename="emotional-palette" label="Emotional Palette" theme="light" />
     </div>
   );
 }

@@ -22,7 +22,7 @@ function SectionHeading({ children }: { children: React.ReactNode }) {
       style={{
         fontFamily: "'Inter', sans-serif",
         fontWeight: 400,
-        fontSize: '10px',
+        fontSize: '13px',
         letterSpacing: '0.14em',
         textTransform: 'uppercase',
         color: INK_FAINT,
@@ -44,7 +44,7 @@ function HeaderRow() {
           style={{
             fontFamily: "'Inter', sans-serif",
             fontWeight: 400,
-            fontSize: '11px',
+            fontSize: '14px',
             letterSpacing: '0.1em',
             textTransform: 'uppercase',
             color: INK_MED,
@@ -68,7 +68,7 @@ function LabelCell({ label, hue, italic = true }: { label: string; hue: number; 
         fontFamily: italic ? "'Cormorant Garamond', serif" : "'Inter', sans-serif",
         fontStyle: italic ? 'italic' : 'normal',
         fontWeight: 400,
-        fontSize: italic ? '16px' : '11px',
+        fontSize: italic ? '20px' : '14px',
         letterSpacing: italic ? undefined : '0.04em',
         color: INK_STRONG,
         display: 'flex',
@@ -100,7 +100,7 @@ function SensoryCells({ profile }: { profile: ReturnType<typeof emotionToSensory
             style={{
               fontFamily: "'Inter', sans-serif",
               fontWeight: 500,
-              fontSize: '11px',
+              fontSize: '14px',
               color: INK_STRONG,
               marginBottom: '2px',
             }}
@@ -111,7 +111,7 @@ function SensoryCells({ profile }: { profile: ReturnType<typeof emotionToSensory
             style={{
               fontFamily: "'Inter', sans-serif",
               fontWeight: 300,
-              fontSize: '10px',
+              fontSize: '13px',
               color: INK_FAINT,
             }}
           >
@@ -136,7 +136,7 @@ const SelectionTable = React.forwardRef<HTMLDivElement, { blend: BlendEntry[] }>
       ref={ref}
       style={{
         display: 'grid',
-        gridTemplateColumns: '120px repeat(5, 1fr)',
+        gridTemplateColumns: '150px repeat(5, 1fr)',
         rowGap: '14px',
         columnGap: '16px',
         background: '#ffffff',
@@ -188,7 +188,7 @@ function OverviewTable({ selections }: { selections: SelectionEntry[] }) {
         ref={ref}
         style={{
           display: 'grid',
-          gridTemplateColumns: '120px repeat(5, 1fr)',
+          gridTemplateColumns: '150px repeat(5, 1fr)',
           rowGap: '14px',
           columnGap: '16px',
           background: '#ffffff',
