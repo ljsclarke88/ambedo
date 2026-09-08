@@ -84,7 +84,7 @@ function FlowList({ title, groups }: { title: string; groups: RadarGroup[] }) {
           <span style={{ fontFamily: "'Inter', sans-serif", fontSize: '12px', color: INK_FAINT, fontStyle: 'italic' }}>none</span>
         ) : (
           groups.map((g) => (
-            <div key={g.source} style={{ fontFamily: "'Inter', sans-serif", fontSize: '12px', lineHeight: 1.7 }}>
+            <div key={g.source} style={{ fontFamily: "'Inter', sans-serif", fontSize: '12px', lineHeight: 1.7, whiteSpace: 'nowrap' }}>
               <span style={{ fontWeight: 700, color: `hsl(${g.hue}, 60%, 36%)` }}>{g.source}</span>
               <span style={{ color: INK_FAINT }}>: </span>
               {g.points.map((p, i) => (
@@ -233,7 +233,7 @@ function PointList({ title, points }: { title: string; points: RadarPoint[] }) {
             }}
           >
             <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: `hsl(${p.hue}, 60%, 45%)`, flexShrink: 0 }} />
-            <span>{p.label}</span>
+            <span style={{ whiteSpace: 'nowrap' }}>{p.label}</span>
             {p.weightPct !== null && (
               <span style={{ color: INK_FAINT, fontSize: '10px', marginLeft: 'auto' }}>{p.weightPct}%</span>
             )}
