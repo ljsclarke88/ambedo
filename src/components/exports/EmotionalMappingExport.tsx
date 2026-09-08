@@ -23,6 +23,8 @@ const ROW_PADDING = 20;
 // "opposing" key) — its own natural height, used so that chart's row can
 // get an explicit total height too.
 const LEGEND_HEIGHT = 30;
+const OVERVIEW_ROW_HEIGHT = SIZE + ROW_PADDING * 2;
+const SELECTION_ROW_HEIGHT = SIZE + LEGEND_HEIGHT + ROW_PADDING * 2;
 
 // Dark ink on a white chart — same opacity ladder the dark theme used,
 // just inverted, so relative emphasis is unchanged.
@@ -134,7 +136,7 @@ const OverviewChart = React.forwardRef<
         // download — a fixed width keeps the row's own box the full size
         // regardless of its parent.
         width: `${ROW_WIDTH}px`,
-        height: `${SIZE + ROW_PADDING * 2}px`,
+        height: `${OVERVIEW_ROW_HEIGHT}px`,
         background: '#ffffff',
         borderRadius: '4px',
         padding: `${ROW_PADDING}px`,
@@ -289,7 +291,7 @@ const SelectionChart = React.forwardRef<HTMLDivElement, { points: RadarPoint[] }
         // download — a fixed width keeps the row's own box the full size
         // regardless of its parent.
         width: `${ROW_WIDTH}px`,
-        height: `${SIZE + LEGEND_HEIGHT + ROW_PADDING * 2}px`,
+        height: `${SELECTION_ROW_HEIGHT}px`,
         background: '#ffffff',
         borderRadius: '4px',
         padding: `${ROW_PADDING}px`,
@@ -401,6 +403,7 @@ function SelectionMappingRow({ index, selection }: { index: number; selection: S
         targetRef={ref}
         filename={`emotional-mapping-${index + 1}-${selection.variant.label.toLowerCase()}`}
         theme="light"
+        size={{ width: ROW_WIDTH, height: SELECTION_ROW_HEIGHT }}
       />
     </div>
   );
@@ -415,7 +418,13 @@ function OverviewSection({ selections }: { selections: SelectionEntry[] }) {
   return (
     <div>
       <OverviewChart ref={ref} points={overviewPoints} complementary={complementary} opposing={opposing} />
-      <DownloadBar targetRef={ref} filename="emotional-mapping-overview" label="Overview" theme="light" />
+      <DownloadBar
+        targetRef={ref}
+        filename="emotional-mapping-overview"
+        label="Overview"
+        theme="light"
+        size={{ width: ROW_WIDTH, height: OVERVIEW_ROW_HEIGHT }}
+      />
     </div>
   );
 }
@@ -430,7 +439,12 @@ export default function EmotionalMappingExport({ selections }: EmotionalMappingE
     return (
       <div>
         <SelectionChart ref={ref} points={deriveRadarData(selections[0].angleDeg, selections[0].radius)} />
-        <DownloadBar targetRef={ref} filename="emotional-mapping" label="Emotional Mapping" />
+        <DownloadBar
+          targetRef={ref}
+          filename="emotional-mapping"
+          label="Emotional Mapping"
+          size={{ width: ROW_WIDTH, height: SELECTION_ROW_HEIGHT }}
+        />
       </div>
     );
   }
