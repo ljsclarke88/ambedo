@@ -27,14 +27,24 @@ export function topBlendEntry(blend: BlendEntry[]): BlendEntry {
 // Derives deck-style, multi-emotion views from a single wheel selection.
 // The wheel only ever produces one point at a time, but the client deck's
 // "Emotional Palette" and "Emotional Mapping" slides both show several
-// emotions at once (primary/secondary/tertiary + a complementary/contrast
-// pair, or a full complementary/opposing field). Rather than hardcoding this
-// project's specific emotion names, these functions read them off the
-// blend engine so any wheel position produces a coherent 5-role palette or
-// field map.
+// emotions at once: the pick itself, its two complementary neighbours, and
+// its two contrasting opposites.
+//
+// Both roles follow Plutchik's own wheel geometry, not a re-reading of the
+// pick's own blend:
+//   - Complementary = ADJACENT emotions, one step around the wheel either
+//     direction. On Plutchik's model this is what actually blends into a
+//     named compound (joy+trust=love, fear+surprise=awe) — "complementary"
+//     in the everyday sense of "goes well with", not the color-wheel sense
+//     of "directly opposite".
+//   - Contrast/opposing = the true polar opposite, straight across the
+//     wheel (four steps away on Plutchik's 8-primary version), matched at
+//     the SAME intensity ring as the pick — joy contrasts with sadness,
+//     ecstasy with grief, not ecstasy with pensiveness. Using a different
+//     ring gets the axis right but overstates one side.
 // ---------------------------------------------------------------------------
 
-export type PaletteRole = 'primary' | 'secondary' | 'tertiary' | 'complementary' | 'contrast';
+export type PaletteRole = 'primary' | 'complementary' | 'contrast';
 
 export interface PalettePanelData {
   role: PaletteRole;
@@ -49,15 +59,15 @@ export interface PalettePanelData {
   sourceId: string; // root family id (e.g. 'joy') — which family's texture pool to draw from
 }
 
-const HIGH_R = 0.36;
-const LOW_R = 0.87;
+// The wheel's 6 core families sit 60° apart — Plutchik's own "one step" on
+// his 8-primary wheel, scaled to this wheel's family count.
+const FAMILY_STEP = 60;
 
 function nodeToPanel(e: BlendEntry, role: PaletteRole): PalettePanelData {
-  // Only primary/secondary/tertiary represent an actual share of this
-  // selection's own blend — complementary/contrast are derived from a
-  // different coordinate entirely, so a weight percentage for them would be
-  // meaningless (and previously rendered as a bogus "null%").
-  const isBlendRole = role === 'primary' || role === 'secondary' || role === 'tertiary';
+  // Only primary represents an actual share of this selection's own blend —
+  // complementary/contrast are derived from different coordinates entirely,
+  // so a weight percentage for them would be meaningless (and previously
+  // rendered as a bogus "null%").
   return {
     role,
     label: e.node.label,
@@ -65,7 +75,7 @@ function nodeToPanel(e: BlendEntry, role: PaletteRole): PalettePanelData {
     valence: e.node.valence,
     arousal: e.node.arousal,
     dominance: e.node.dominance,
-    weightPct: isBlendRole ? Math.round(e.weight * 100) : null,
+    weightPct: role === 'primary' ? Math.round(e.weight * 100) : null,
     nodeId: e.node.id,
     intensity: e.node.intensity,
     sourceId: e.node.sourceId,
@@ -77,35 +87,23 @@ export function derivePaletteRoles(
   radius: number,
   blend: BlendEntry[]
 ): PalettePanelData[] {
-  const sig = blend.filter((e) => e.weight > 0.02).slice(0, 3);
-  // A pure/100% pick (no meaningful secondary contribution) only has one
-  // real thing to say about itself, so it borrows the two nearest
-  // complementary and two nearest contrasting neighbours instead — keeping
-  // every row at a full 5 panels the way a blended selection's
-  // primary/secondary/tertiary + complementary/contrast naturally does.
-  const isPure = sig.length <= 1;
+  const primary = nodeToPanel(topBlendEntry(blend), 'primary');
 
-  const primaries: PalettePanelData[] = sig.map((e, i) =>
-    nodeToPanel(e, (['primary', 'secondary', 'tertiary'] as const)[i])
-  );
+  // coordinateToBlend always returns all 165 nodes pre-sorted by weight —
+  // the nearest node to a given coordinate is overwhelmingly dominant, so
+  // a weight threshold here would almost always filter the second contrast
+  // entry out. Taking the top-N directly just means "the N nearest specific
+  // words", which is what we actually want.
+  const complementary = [angleDeg + FAMILY_STEP, angleDeg - FAMILY_STEP]
+    .map((a) => coordinateToBlend(a, radius)[0])
+    .filter((e): e is BlendEntry => !!e)
+    .map((e) => nodeToPanel(e, 'complementary'));
 
-  const compAngle = angleDeg + 180;
+  const contrast = coordinateToBlend(angleDeg + 180, radius)
+    .slice(0, 2)
+    .map((e) => nodeToPanel(e, 'contrast'));
 
-  const compEntries = coordinateToBlend(compAngle, radius)
-    .filter((e) => e.weight > 0.02)
-    .slice(0, isPure ? 2 : 1);
-  const complementary = compEntries.map((e) => nodeToPanel(e, 'complementary'));
-
-  // Same hue neighbourhood as the complement, opposite intensity band —
-  // shares a family with the complementary panel(s) while contrasting in
-  // energy/scale.
-  const contrastRadius = radius > 0.6 ? HIGH_R : LOW_R;
-  const contrastEntries = coordinateToBlend(compAngle, contrastRadius)
-    .filter((e) => e.weight > 0.02)
-    .slice(0, isPure ? 2 : 1);
-  const contrast = contrastEntries.map((e) => nodeToPanel(e, 'contrast'));
-
-  return [...primaries, ...complementary, ...contrast];
+  return [primary, ...complementary, ...contrast];
 }
 
 // ---------------------------------------------------------------------------
@@ -119,25 +117,18 @@ export interface RadarPoint {
   kind: 'complementary' | 'opposing';
 }
 
-// Complementary/opposing here mean the same thing they do on Plutchik's
-// wheel (and in derivePaletteRoles above): the emotion(s) directly across
-// the wheel from the one you picked, not a re-reading of your own pick's
-// own blend — sampling the SAME blend's top entries (as this used to do)
-// just gives back whatever you clicked, which reads as "complementary to
-// itself." Complementary = the opposite angle at the same radius (same
-// intensity, opposite hue); opposing = the opposite angle at the opposite
-// intensity band too (opposite hue AND opposite energy/scale).
+// Complementary/opposing follow the same Plutchik geometry as
+// derivePaletteRoles above: complementary is the pair of adjacent
+// neighbours (one step either direction — what actually blends into a
+// named compound on his model), opposing is the true polar opposite
+// straight across the wheel, matched at the same intensity ring rather
+// than a different one.
 export function deriveRadarData(angleDeg: number, radius: number): RadarPoint[] {
-  const compAngle = angleDeg + 180;
-
-  const complementary = coordinateToBlend(compAngle, radius)
-    .filter((e) => e.weight > 0.02)
-    .slice(0, 4)
+  const complementary = [angleDeg + FAMILY_STEP, angleDeg - FAMILY_STEP]
+    .flatMap((a) => coordinateToBlend(a, radius).slice(0, 2))
     .map((e) => toRadarPoint(e.node, e.weight, 'complementary'));
 
-  const contrastRadius = radius > 0.6 ? HIGH_R : LOW_R;
-  const opposing = coordinateToBlend(compAngle, contrastRadius)
-    .filter((e) => e.weight > 0.02)
+  const opposing = coordinateToBlend(angleDeg + 180, radius)
     .slice(0, 4)
     .map((e) => toRadarPoint(e.node, e.weight, 'opposing'));
 

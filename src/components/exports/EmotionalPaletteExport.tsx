@@ -13,14 +13,10 @@ function roleCaption(p: PalettePanelData): string {
   switch (p.role) {
     case 'primary':
       return p.weightPct !== null ? `Primary · ${p.weightPct}% of blend` : 'Primary';
-    case 'secondary':
-      return p.weightPct !== null ? `Secondary · ${p.weightPct}% of blend` : 'Secondary';
-    case 'tertiary':
-      return p.weightPct !== null ? `Tertiary · ${p.weightPct}% of blend` : 'Tertiary';
     case 'complementary':
-      return 'Complementary — extends the core, no contradiction';
+      return 'Complementary — one step around the wheel, blends without contradiction';
     case 'contrast':
-      return 'Contrast — same field, opposite intensity';
+      return 'Contrast — the direct opposite, same intensity';
   }
 }
 
