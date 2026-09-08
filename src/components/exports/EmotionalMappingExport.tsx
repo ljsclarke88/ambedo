@@ -125,8 +125,15 @@ const OverviewChart = React.forwardRef<
         display: 'flex',
         alignItems: 'center',
         gap: `${TEXT_CHART_GAP}px`,
-        width: '100%',
-        maxWidth: `${ROW_WIDTH}px`,
+        // A fixed width, not width:100%/maxWidth — with a relative width,
+        // the row's own box shrinks to fit a narrower parent (the export
+        // panel scrolls, so it isn't guaranteed to be 870px wide), and the
+        // flexShrink:0 chart column then overflows past the row's own
+        // bounding box. html-to-image sizes its capture canvas from that
+        // bounding box, so anything overflowing it got clipped out of the
+        // download — a fixed width keeps the row's own box the full size
+        // regardless of its parent.
+        width: `${ROW_WIDTH}px`,
         height: `${SIZE + ROW_PADDING * 2}px`,
         background: '#ffffff',
         borderRadius: '4px',
@@ -273,8 +280,15 @@ const SelectionChart = React.forwardRef<HTMLDivElement, { points: RadarPoint[] }
         display: 'flex',
         alignItems: 'center',
         gap: `${TEXT_CHART_GAP}px`,
-        width: '100%',
-        maxWidth: `${ROW_WIDTH}px`,
+        // A fixed width, not width:100%/maxWidth — with a relative width,
+        // the row's own box shrinks to fit a narrower parent (the export
+        // panel scrolls, so it isn't guaranteed to be 870px wide), and the
+        // flexShrink:0 chart column then overflows past the row's own
+        // bounding box. html-to-image sizes its capture canvas from that
+        // bounding box, so anything overflowing it got clipped out of the
+        // download — a fixed width keeps the row's own box the full size
+        // regardless of its parent.
+        width: `${ROW_WIDTH}px`,
         height: `${SIZE + LEGEND_HEIGHT + ROW_PADDING * 2}px`,
         background: '#ffffff',
         borderRadius: '4px',
