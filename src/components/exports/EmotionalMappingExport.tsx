@@ -10,10 +10,14 @@ const SIZE = 440;
 const CX = SIZE / 2;
 const CY = SIZE / 2;
 const MAX_R = 180;
-// Text column (180) + gap (28) + chart (SIZE) + the row's own left/right
+// Wide gap between the text column and the chart — pushes the downloaded
+// row's aspect ratio toward 16:9 (roughly matching the chart's own ~480px
+// height) rather than the much narrower ratio a tight gap produces.
+const TEXT_CHART_GAP = 210;
+// Text column (180) + gap + chart (SIZE) + the row's own left/right
 // padding (20 each) — matches the fixed-pixel columns exactly, so maxWidth
 // never clips or leaves slack.
-const ROW_WIDTH = 180 + 28 + SIZE + 40;
+const ROW_WIDTH = 180 + TEXT_CHART_GAP + SIZE + 40;
 
 // Dark ink on a white chart — same opacity ladder the dark theme used,
 // just inverted, so relative emphasis is unchanged.
@@ -114,7 +118,7 @@ const OverviewChart = React.forwardRef<
       ref={ref}
       style={{
         display: 'flex',
-        gap: '28px',
+        gap: `${TEXT_CHART_GAP}px`,
         width: '100%',
         maxWidth: `${ROW_WIDTH}px`,
         background: '#ffffff',
@@ -258,7 +262,7 @@ const SelectionChart = React.forwardRef<HTMLDivElement, { points: RadarPoint[] }
       ref={ref}
       style={{
         display: 'flex',
-        gap: '28px',
+        gap: `${TEXT_CHART_GAP}px`,
         width: '100%',
         maxWidth: `${ROW_WIDTH}px`,
         background: '#ffffff',
