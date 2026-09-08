@@ -18,6 +18,11 @@ const TEXT_CHART_GAP = 210;
 // padding (20 each) — matches the fixed-pixel columns exactly, so maxWidth
 // never clips or leaves slack.
 const ROW_WIDTH = 180 + TEXT_CHART_GAP + SIZE + 40;
+const ROW_PADDING = 20;
+// The legend row under the per-selection chart's svg ("complementary" /
+// "opposing" key) — its own natural height, used so that chart's row can
+// get an explicit total height too.
+const LEGEND_HEIGHT = 30;
 
 // Dark ink on a white chart — same opacity ladder the dark theme used,
 // just inverted, so relative emphasis is unchanged.
@@ -122,10 +127,12 @@ const OverviewChart = React.forwardRef<
         gap: `${TEXT_CHART_GAP}px`,
         width: '100%',
         maxWidth: `${ROW_WIDTH}px`,
+        height: `${SIZE + ROW_PADDING * 2}px`,
         background: '#ffffff',
         borderRadius: '4px',
-        padding: '20px',
+        padding: `${ROW_PADDING}px`,
         margin: '0 auto',
+        boxSizing: 'border-box',
       }}
     >
       <div style={{ width: '180px', flexShrink: 0 }}>
@@ -135,9 +142,10 @@ const OverviewChart = React.forwardRef<
 
       {/* Fixed pixel size rather than flex + aspect-ratio — html-to-image
           (which DownloadBar uses to rasterise this node) doesn't reliably
-          resolve aspect-ratio-derived flex sizing when it clones the DOM
-          for capture, which was collapsing this column to zero height and
-          leaving only the text panel in the downloaded image. */}
+          resolve aspect-ratio- or flex-derived sizing when it clones the
+          DOM for capture, which has twice now collapsed or clipped this
+          column. Every dimension up the chain (row height included, above)
+          is now an explicit pixel value rather than left to be computed. */}
       <div style={{ width: `${SIZE}px`, height: `${SIZE}px`, flexShrink: 0 }}>
         <svg viewBox={`0 0 ${SIZE} ${SIZE}`} width={SIZE} height={SIZE}>
           <ChartRings />
@@ -267,10 +275,12 @@ const SelectionChart = React.forwardRef<HTMLDivElement, { points: RadarPoint[] }
         gap: `${TEXT_CHART_GAP}px`,
         width: '100%',
         maxWidth: `${ROW_WIDTH}px`,
+        height: `${SIZE + LEGEND_HEIGHT + ROW_PADDING * 2}px`,
         background: '#ffffff',
         borderRadius: '4px',
-        padding: '20px',
+        padding: `${ROW_PADDING}px`,
         margin: '0 auto',
+        boxSizing: 'border-box',
       }}
     >
       <div style={{ width: '180px', flexShrink: 0 }}>
@@ -280,7 +290,7 @@ const SelectionChart = React.forwardRef<HTMLDivElement, { points: RadarPoint[] }
 
       {/* Fixed pixel size rather than flex + aspect-ratio — see the same
           note in OverviewChart above. */}
-      <div style={{ width: `${SIZE}px`, flexShrink: 0 }}>
+      <div style={{ width: `${SIZE}px`, height: `${SIZE + LEGEND_HEIGHT}px`, flexShrink: 0 }}>
         <svg viewBox={`0 0 ${SIZE} ${SIZE}`} width={SIZE} height={SIZE} style={{ display: 'block' }}>
           <ChartRings />
           {points.map((p) => {
