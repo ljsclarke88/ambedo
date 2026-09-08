@@ -42,13 +42,22 @@ function ChartRings() {
   );
 }
 
+// One selection's contribution to the overview's complementary/opposing
+// text column — which emotion these words belong to, and the words
+// themselves.
+interface RadarGroup {
+  source: string; // the selection's own label, e.g. "Joy"
+  hue: number;
+  points: RadarPoint[];
+}
+
 // Compact left-hand text column for the overview, where a full selection-
 // by-selection breakdown (like the per-selection PointList below) would run
 // to dozens of rows — every complementary/opposing emotion across every
-// selection, deduplicated, read as one wrapped line per heading rather than
-// one row per item, so the full list fits without turning into a wall of
-// bullets.
-function FlowList({ title, points }: { title: string; points: RadarPoint[] }) {
+// selection, grouped by which selection it belongs to (one wrapped line per
+// selection) rather than one row per item, so the full list stays readable
+// without turning into a wall of bullets.
+function FlowList({ title, groups }: { title: string; groups: RadarGroup[] }) {
   return (
     <div style={{ marginBottom: '22px' }}>
       <div
@@ -66,15 +75,21 @@ function FlowList({ title, points }: { title: string; points: RadarPoint[] }) {
       >
         {title}
       </div>
-      <div style={{ fontFamily: "'Inter', sans-serif", fontSize: '12px', lineHeight: 1.8 }}>
-        {points.length === 0 ? (
-          <span style={{ color: INK_FAINT, fontStyle: 'italic' }}>none</span>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+        {groups.length === 0 ? (
+          <span style={{ fontFamily: "'Inter', sans-serif", fontSize: '12px', color: INK_FAINT, fontStyle: 'italic' }}>none</span>
         ) : (
-          points.map((p, i) => (
-            <span key={p.label}>
-              <span style={{ color: '#000000', fontWeight: 500 }}>{p.label}</span>
-              {i < points.length - 1 && <span style={{ color: INK_FAINT }}>, </span>}
-            </span>
+          groups.map((g) => (
+            <div key={g.source} style={{ fontFamily: "'Inter', sans-serif", fontSize: '12px', lineHeight: 1.7 }}>
+              <span style={{ fontWeight: 700, color: `hsl(${g.hue}, 60%, 36%)` }}>{g.source}</span>
+              <span style={{ color: INK_FAINT }}>: </span>
+              {g.points.map((p, i) => (
+                <span key={p.label}>
+                  <span style={{ color: '#000000' }}>{p.label}</span>
+                  {i < g.points.length - 1 && <span style={{ color: INK_FAINT }}>, </span>}
+                </span>
+              ))}
+            </div>
           ))
         )}
       </div>
@@ -92,7 +107,7 @@ function FlowList({ title, points }: { title: string; points: RadarPoint[] }) {
 // download, same as the other export tabs' overview sections.
 const OverviewChart = React.forwardRef<
   HTMLDivElement,
-  { points: OverviewRadarPoint[]; complementary: RadarPoint[]; opposing: RadarPoint[] }
+  { points: OverviewRadarPoint[]; complementary: RadarGroup[]; opposing: RadarGroup[] }
 >(function OverviewChart({ points, complementary, opposing }, ref) {
   return (
     <div
@@ -109,8 +124,8 @@ const OverviewChart = React.forwardRef<
       }}
     >
       <div style={{ width: '180px', flexShrink: 0, paddingTop: '4px' }}>
-        <FlowList title="Complementary" points={complementary} />
-        <FlowList title="Opposing" points={opposing} />
+        <FlowList title="Complementary" groups={complementary} />
+        <FlowList title="Opposing" groups={opposing} />
       </div>
 
       {/* Fixed pixel size rather than flex + aspect-ratio — html-to-image
@@ -161,26 +176,21 @@ const OverviewChart = React.forwardRef<
   );
 });
 
-// Pools every selection's complementary/opposing points into one
-// deduplicated set each — the full list the overview needs, without
-// repeating an emotion once per selection that happens to share it. Ties
-// go to the highest weight seen for that label.
-function aggregateComplementaryOpposing(selections: SelectionEntry[]): { complementary: RadarPoint[]; opposing: RadarPoint[] } {
-  const compMap = new Map<string, RadarPoint>();
-  const oppMap = new Map<string, RadarPoint>();
+// Every selection's complementary/opposing words, grouped under the
+// selection they belong to — so the overview's full list still says which
+// picked emotion each word is complementary/opposing to, not just a flat
+// pool of words with no origin.
+function aggregateComplementaryOpposing(selections: SelectionEntry[]): { complementary: RadarGroup[]; opposing: RadarGroup[] } {
+  const complementary: RadarGroup[] = [];
+  const opposing: RadarGroup[] = [];
   for (const s of selections) {
-    for (const p of deriveRadarData(s.angleDeg, s.radius)) {
-      const map = p.kind === 'complementary' ? compMap : oppMap;
-      const existing = map.get(p.label);
-      if (!existing || (p.weightPct ?? 0) > (existing.weightPct ?? 0)) {
-        map.set(p.label, p);
-      }
-    }
+    const points = deriveRadarData(s.angleDeg, s.radius);
+    const comp = points.filter((p) => p.kind === 'complementary');
+    const opp = points.filter((p) => p.kind === 'opposing');
+    if (comp.length) complementary.push({ source: s.variant.label, hue: s.baseHue, points: comp });
+    if (opp.length) opposing.push({ source: s.variant.label, hue: s.baseHue, points: opp });
   }
-  return {
-    complementary: [...compMap.values()].sort((a, b) => (b.weightPct ?? 0) - (a.weightPct ?? 0)),
-    opposing: [...oppMap.values()].sort((a, b) => a.label.localeCompare(b.label)),
-  };
+  return { complementary, opposing };
 }
 
 // Left-hand text column — the same complementary/opposing points the chart
