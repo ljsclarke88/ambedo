@@ -118,6 +118,7 @@ const OverviewChart = React.forwardRef<
       ref={ref}
       style={{
         display: 'flex',
+        alignItems: 'center',
         gap: `${TEXT_CHART_GAP}px`,
         width: '100%',
         maxWidth: `${ROW_WIDTH}px`,
@@ -127,7 +128,7 @@ const OverviewChart = React.forwardRef<
         margin: '0 auto',
       }}
     >
-      <div style={{ width: '180px', flexShrink: 0, paddingTop: '4px' }}>
+      <div style={{ width: '180px', flexShrink: 0 }}>
         <FlowList title="Complementary" groups={complementary} />
         <FlowList title="Opposing" groups={opposing} />
       </div>
@@ -262,6 +263,7 @@ const SelectionChart = React.forwardRef<HTMLDivElement, { points: RadarPoint[] }
       ref={ref}
       style={{
         display: 'flex',
+        alignItems: 'center',
         gap: `${TEXT_CHART_GAP}px`,
         width: '100%',
         maxWidth: `${ROW_WIDTH}px`,
@@ -271,7 +273,7 @@ const SelectionChart = React.forwardRef<HTMLDivElement, { points: RadarPoint[] }
         margin: '0 auto',
       }}
     >
-      <div style={{ width: '180px', flexShrink: 0, paddingTop: '4px' }}>
+      <div style={{ width: '180px', flexShrink: 0 }}>
         <PointList title="Complementary" points={complementary} />
         <PointList title="Opposing" points={opposing} />
       </div>
