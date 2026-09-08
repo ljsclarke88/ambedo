@@ -10,6 +10,10 @@ const SIZE = 440;
 const CX = SIZE / 2;
 const CY = SIZE / 2;
 const MAX_R = 180;
+// Text column (180) + gap (28) + chart (SIZE) + the row's own left/right
+// padding (20 each) — matches the fixed-pixel columns exactly, so maxWidth
+// never clips or leaves slack.
+const ROW_WIDTH = 180 + 28 + SIZE + 40;
 
 // Dark ink on a white chart — same opacity ladder the dark theme used,
 // just inverted, so relative emphasis is unchanged.
@@ -68,7 +72,7 @@ function FlowList({ title, points }: { title: string; points: RadarPoint[] }) {
         ) : (
           points.map((p, i) => (
             <span key={p.label}>
-              <span style={{ color: `hsl(${p.hue}, 60%, 36%)`, fontWeight: 500 }}>{p.label}</span>
+              <span style={{ color: '#000000', fontWeight: 500 }}>{p.label}</span>
               {i < points.length - 1 && <span style={{ color: INK_FAINT }}>, </span>}
             </span>
           ))
@@ -97,7 +101,7 @@ const OverviewChart = React.forwardRef<
         display: 'flex',
         gap: '28px',
         width: '100%',
-        maxWidth: `${SIZE + 200}px`,
+        maxWidth: `${ROW_WIDTH}px`,
         background: '#ffffff',
         borderRadius: '4px',
         padding: '20px',
@@ -109,8 +113,13 @@ const OverviewChart = React.forwardRef<
         <FlowList title="Opposing" points={opposing} />
       </div>
 
-      <div style={{ flex: '1 1 0', minWidth: 0, aspectRatio: '1 / 1' }}>
-        <svg viewBox={`0 0 ${SIZE} ${SIZE}`} width="100%" height="100%">
+      {/* Fixed pixel size rather than flex + aspect-ratio — html-to-image
+          (which DownloadBar uses to rasterise this node) doesn't reliably
+          resolve aspect-ratio-derived flex sizing when it clones the DOM
+          for capture, which was collapsing this column to zero height and
+          leaving only the text panel in the downloaded image. */}
+      <div style={{ width: `${SIZE}px`, height: `${SIZE}px`, flexShrink: 0 }}>
+        <svg viewBox={`0 0 ${SIZE} ${SIZE}`} width={SIZE} height={SIZE}>
           <ChartRings />
           {/* Minor bubbles first, so choice bubbles + labels always sit on top */}
           {points.filter((p) => !p.isChoice).map((p, i) => {
@@ -160,7 +169,7 @@ function aggregateComplementaryOpposing(selections: SelectionEntry[]): { complem
   const compMap = new Map<string, RadarPoint>();
   const oppMap = new Map<string, RadarPoint>();
   for (const s of selections) {
-    for (const p of deriveRadarData(s.blend)) {
+    for (const p of deriveRadarData(s.angleDeg, s.radius)) {
       const map = p.kind === 'complementary' ? compMap : oppMap;
       const existing = map.get(p.label);
       if (!existing || (p.weightPct ?? 0) > (existing.weightPct ?? 0)) {
@@ -206,7 +215,7 @@ function PointList({ title, points }: { title: string; points: RadarPoint[] }) {
               fontFamily: "'Inter', sans-serif",
               fontWeight: 400,
               fontSize: '12px',
-              color: INK_MED,
+              color: '#000000',
             }}
           >
             <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: `hsl(${p.hue}, 60%, 45%)`, flexShrink: 0 }} />
@@ -241,7 +250,7 @@ const SelectionChart = React.forwardRef<HTMLDivElement, { points: RadarPoint[] }
         display: 'flex',
         gap: '28px',
         width: '100%',
-        maxWidth: `${SIZE + 200}px`,
+        maxWidth: `${ROW_WIDTH}px`,
         background: '#ffffff',
         borderRadius: '4px',
         padding: '20px',
@@ -253,8 +262,10 @@ const SelectionChart = React.forwardRef<HTMLDivElement, { points: RadarPoint[] }
         <PointList title="Opposing" points={opposing} />
       </div>
 
-      <div style={{ flex: '1 1 0', minWidth: 0 }}>
-        <svg viewBox={`0 0 ${SIZE} ${SIZE}`} width="100%" height="100%" style={{ aspectRatio: '1 / 1', display: 'block' }}>
+      {/* Fixed pixel size rather than flex + aspect-ratio — see the same
+          note in OverviewChart above. */}
+      <div style={{ width: `${SIZE}px`, flexShrink: 0 }}>
+        <svg viewBox={`0 0 ${SIZE} ${SIZE}`} width={SIZE} height={SIZE} style={{ display: 'block' }}>
           <ChartRings />
           {points.map((p) => {
             const [x, y] = toXY(p.angleDeg, p.radiusNorm);
@@ -345,7 +356,7 @@ function SelectionMappingRow({ index, selection }: { index: number; selection: S
       >
         {index + 1} · {selection.variant.label}
       </div>
-      <SelectionChart ref={ref} points={deriveRadarData(selection.blend)} />
+      <SelectionChart ref={ref} points={deriveRadarData(selection.angleDeg, selection.radius)} />
       <DownloadBar
         targetRef={ref}
         filename={`emotional-mapping-${index + 1}-${selection.variant.label.toLowerCase()}`}
@@ -378,7 +389,7 @@ export default function EmotionalMappingExport({ selections }: EmotionalMappingE
   if (selections.length === 1) {
     return (
       <div>
-        <SelectionChart ref={ref} points={deriveRadarData(selections[0].blend)} />
+        <SelectionChart ref={ref} points={deriveRadarData(selections[0].angleDeg, selections[0].radius)} />
         <DownloadBar targetRef={ref} filename="emotional-mapping" label="Emotional Mapping" />
       </div>
     );

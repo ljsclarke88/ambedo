@@ -119,27 +119,27 @@ export interface RadarPoint {
   kind: 'complementary' | 'opposing';
 }
 
-export function deriveRadarData(blend: BlendEntry[]): RadarPoint[] {
-  const sorted = [...blend].sort((a, b) => b.weight - a.weight);
+// Complementary/opposing here mean the same thing they do on Plutchik's
+// wheel (and in derivePaletteRoles above): the emotion(s) directly across
+// the wheel from the one you picked, not a re-reading of your own pick's
+// own blend — sampling the SAME blend's top entries (as this used to do)
+// just gives back whatever you clicked, which reads as "complementary to
+// itself." Complementary = the opposite angle at the same radius (same
+// intensity, opposite hue); opposing = the opposite angle at the opposite
+// intensity band too (opposite hue AND opposite energy/scale).
+export function deriveRadarData(angleDeg: number, radius: number): RadarPoint[] {
+  const compAngle = angleDeg + 180;
 
-  const complementary = sorted
-    .filter((e) => e.weight > 0.015)
+  const complementary = coordinateToBlend(compAngle, radius)
+    .filter((e) => e.weight > 0.02)
     .slice(0, 4)
     .map((e) => toRadarPoint(e.node, e.weight, 'complementary'));
 
-  // Opposing = least-represented, angularly-distinct nodes — the tail of the
-  // same blend, filtered to unique source families so we don't just list
-  // three intensities of one emotion.
-  const seen = new Set(complementary.map((p) => p.label));
-  const opposing: RadarPoint[] = [];
-  for (let i = sorted.length - 1; i >= 0 && opposing.length < 4; i--) {
-    const node = sorted[i].node;
-    if (seen.has(node.label)) continue;
-    const bySource = opposing.find((p) => p.label === node.label);
-    if (bySource) continue;
-    seen.add(node.label);
-    opposing.push(toRadarPoint(node, sorted[i].weight, 'opposing'));
-  }
+  const contrastRadius = radius > 0.6 ? HIGH_R : LOW_R;
+  const opposing = coordinateToBlend(compAngle, contrastRadius)
+    .filter((e) => e.weight > 0.02)
+    .slice(0, 4)
+    .map((e) => toRadarPoint(e.node, e.weight, 'opposing'));
 
   return [...complementary, ...opposing];
 }
