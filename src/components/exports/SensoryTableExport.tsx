@@ -1,6 +1,6 @@
 import React, { useRef } from 'react';
 import { SelectionEntry, topBlendEntry } from '../../lib/deckDerive';
-import { BlendEntry, emotionToSensoryProfile } from '../../lib/mappings';
+import { BlendEntry, emotionToSensoryProfile, emotionToSound } from '../../lib/mappings';
 import DownloadBar from './DownloadBar';
 
 interface SensoryTableExportProps {
@@ -90,8 +90,24 @@ function LabelCell({ label, hue, italic = true }: { label: string; hue: number; 
   );
 }
 
-function SensoryCells({ profile }: { profile: ReturnType<typeof emotionToSensoryProfile> }) {
+function SensoryCells({
+  profile,
+  valence,
+  arousal,
+  dominance,
+}: {
+  profile: ReturnType<typeof emotionToSensoryProfile>;
+  valence: number;
+  arousal: number;
+  dominance: number;
+}) {
   const cells = [profile.sound, profile.light, profile.scent, profile.touch, profile.space];
+  // The zone-level sound descriptor (title/detail) only sometimes mentions a
+  // frequency, and even then only as a broad zone range — this is this
+  // specific emotion's own computed pitch (same maths driving the Soundscape
+  // tab), so it's always present regardless of which zone the emotion falls
+  // in.
+  const sound = emotionToSound(valence, arousal, dominance);
   return (
     <>
       {cells.map((cell, ci) => (
@@ -107,6 +123,19 @@ function SensoryCells({ profile }: { profile: ReturnType<typeof emotionToSensory
           >
             {cell.title}
           </div>
+          {ci === 0 && (
+            <div
+              style={{
+                fontFamily: "'Inter', sans-serif",
+                fontWeight: 500,
+                fontSize: '11px',
+                letterSpacing: '0.02em',
+                color: INK_MED,
+              }}
+            >
+              {sound.frequency}Hz · {sound.noteName}
+            </div>
+          )}
           <div
             style={{
               fontFamily: "'Inter', sans-serif",
@@ -150,7 +179,7 @@ const SelectionTable = React.forwardRef<HTMLDivElement, { blend: BlendEntry[] }>
         return (
           <React.Fragment key={entry.node.id}>
             <LabelCell label={entry.node.label} hue={entry.node.hue} />
-            <SensoryCells profile={profile} />
+            <SensoryCells profile={profile} valence={entry.node.valence} arousal={entry.node.arousal} dominance={entry.node.dominance} />
           </React.Fragment>
         );
       })}
@@ -203,7 +232,7 @@ function OverviewTable({ selections }: { selections: SelectionEntry[] }) {
           return (
             <React.Fragment key={s.id}>
               <LabelCell label={top.node.label} hue={top.node.hue} />
-              <SensoryCells profile={profile} />
+              <SensoryCells profile={profile} valence={top.node.valence} arousal={top.node.arousal} dominance={top.node.dominance} />
             </React.Fragment>
           );
         })}
