@@ -18,16 +18,20 @@ export async function downloadNodeAsImage(
   // every export already paints its own full-bleed background). Every
   // export tab is white/cream now, so '#ffffff' is the correct fallback.
   // canvasWidth/canvasHeight (explicit output size) and pixelRatio (a
-  // multiplier applied to an auto-detected size) are two different ways of
-  // reaching the same 2x-crisp result — mixing them is redundant at best,
-  // so when an explicit size is known, skip pixelRatio entirely rather than
-  // risk the two disagreeing.
+  // multiplier applied on top of whatever size is used) are two different
+  // ways of reaching the same 2x-crisp result. Omitting pixelRatio does NOT
+  // mean "no multiplier" — html-to-image defaults it to the browser's own
+  // devicePixelRatio (2 on most modern screens), which was silently
+  // doubling the already-explicit canvasWidth/canvasHeight again, rendering
+  // the content far larger than the canvas meant to hold it and cropping
+  // it. Pin pixelRatio to 1 whenever canvasWidth/canvasHeight are explicit.
   const options = size
     ? {
         width: size.width,
         height: size.height,
         canvasWidth: size.width * 2,
         canvasHeight: size.height * 2,
+        pixelRatio: 1,
         backgroundColor: format === 'jpeg' ? '#ffffff' : undefined,
         cacheBust: true,
       }
