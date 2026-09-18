@@ -25,6 +25,15 @@ const ROW_PADDING = 20;
 const LEGEND_HEIGHT = 30;
 const OVERVIEW_ROW_HEIGHT = SIZE + ROW_PADDING * 2;
 const SELECTION_ROW_HEIGHT = SIZE + LEGEND_HEIGHT + ROW_PADDING * 2;
+const TEXT_COL_WIDTH = 180;
+// Absolute pixel positions for the two columns, used instead of flexbox —
+// flexbox inside the foreignObject html-to-image wraps this row in for
+// capture has proven unreliable across several fix attempts (the chart
+// column kept clipping regardless of explicit widths/heights). Plain
+// absolute positioning with hardcoded offsets is a much simpler, more
+// universally-supported layout primitive for that rendering path.
+const TEXT_COL_X = ROW_PADDING;
+const CHART_COL_X = ROW_PADDING + TEXT_COL_WIDTH + TEXT_CHART_GAP;
 
 // Dark ink on a white chart — same opacity ladder the dark theme used,
 // just inverted, so relative emphasis is unchanged.
@@ -124,38 +133,25 @@ const OverviewChart = React.forwardRef<
     <div
       ref={ref}
       style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: `${TEXT_CHART_GAP}px`,
-        // A fixed width, not width:100%/maxWidth — with a relative width,
-        // the row's own box shrinks to fit a narrower parent (the export
-        // panel scrolls, so it isn't guaranteed to be 870px wide), and the
-        // flexShrink:0 chart column then overflows past the row's own
-        // bounding box. html-to-image sizes its capture canvas from that
-        // bounding box, so anything overflowing it got clipped out of the
-        // download — a fixed width keeps the row's own box the full size
-        // regardless of its parent.
+        // Absolute-positioned children, not flexbox — see the note on
+        // TEXT_COL_X/CHART_COL_X above. This row's own box is always a
+        // fixed size regardless of its parent's width, so nothing needs to
+        // shrink or overflow.
+        position: 'relative',
         width: `${ROW_WIDTH}px`,
         height: `${OVERVIEW_ROW_HEIGHT}px`,
         background: '#ffffff',
         borderRadius: '4px',
-        padding: `${ROW_PADDING}px`,
         margin: '0 auto',
         boxSizing: 'border-box',
       }}
     >
-      <div style={{ width: '180px', flexShrink: 0 }}>
+      <div style={{ position: 'absolute', left: `${TEXT_COL_X}px`, top: `${ROW_PADDING}px`, width: `${TEXT_COL_WIDTH}px` }}>
         <FlowList title="Complementary" groups={complementary} />
         <FlowList title="Opposing" groups={opposing} />
       </div>
 
-      {/* Fixed pixel size rather than flex + aspect-ratio — html-to-image
-          (which DownloadBar uses to rasterise this node) doesn't reliably
-          resolve aspect-ratio- or flex-derived sizing when it clones the
-          DOM for capture, which has twice now collapsed or clipped this
-          column. Every dimension up the chain (row height included, above)
-          is now an explicit pixel value rather than left to be computed. */}
-      <div style={{ width: `${SIZE}px`, height: `${SIZE}px`, flexShrink: 0 }}>
+      <div style={{ position: 'absolute', left: `${CHART_COL_X}px`, top: `${ROW_PADDING}px`, width: `${SIZE}px`, height: `${SIZE}px` }}>
         <svg viewBox={`0 0 ${SIZE} ${SIZE}`} width={SIZE} height={SIZE}>
           <ChartRings />
           {/* Minor bubbles first, so choice bubbles + labels always sit on top */}
@@ -279,34 +275,23 @@ const SelectionChart = React.forwardRef<HTMLDivElement, { points: RadarPoint[] }
     <div
       ref={ref}
       style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: `${TEXT_CHART_GAP}px`,
-        // A fixed width, not width:100%/maxWidth — with a relative width,
-        // the row's own box shrinks to fit a narrower parent (the export
-        // panel scrolls, so it isn't guaranteed to be 870px wide), and the
-        // flexShrink:0 chart column then overflows past the row's own
-        // bounding box. html-to-image sizes its capture canvas from that
-        // bounding box, so anything overflowing it got clipped out of the
-        // download — a fixed width keeps the row's own box the full size
-        // regardless of its parent.
+        // Absolute-positioned children, not flexbox — see the note on
+        // TEXT_COL_X/CHART_COL_X above.
+        position: 'relative',
         width: `${ROW_WIDTH}px`,
         height: `${SELECTION_ROW_HEIGHT}px`,
         background: '#ffffff',
         borderRadius: '4px',
-        padding: `${ROW_PADDING}px`,
         margin: '0 auto',
         boxSizing: 'border-box',
       }}
     >
-      <div style={{ width: '180px', flexShrink: 0 }}>
+      <div style={{ position: 'absolute', left: `${TEXT_COL_X}px`, top: `${ROW_PADDING}px`, width: `${TEXT_COL_WIDTH}px` }}>
         <PointList title="Complementary" points={complementary} />
         <PointList title="Opposing" points={opposing} />
       </div>
 
-      {/* Fixed pixel size rather than flex + aspect-ratio — see the same
-          note in OverviewChart above. */}
-      <div style={{ width: `${SIZE}px`, height: `${SIZE + LEGEND_HEIGHT}px`, flexShrink: 0 }}>
+      <div style={{ position: 'absolute', left: `${CHART_COL_X}px`, top: `${ROW_PADDING}px`, width: `${SIZE}px`, height: `${SIZE + LEGEND_HEIGHT}px` }}>
         <svg viewBox={`0 0 ${SIZE} ${SIZE}`} width={SIZE} height={SIZE} style={{ display: 'block' }}>
           <ChartRings />
           {points.map((p) => {
