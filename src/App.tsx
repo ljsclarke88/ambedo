@@ -5,6 +5,7 @@ import { coordinateToBlend, blendToAffect } from './lib/mappings';
 import { SelectionEntry } from './lib/deckDerive';
 import EmotionWheel from './components/EmotionWheel';
 import EmotionSearch from './components/EmotionSearch';
+import ColorPicker from './components/ColorPicker';
 import PalettePanel from './components/PalettePanel';
 import InfoPanel from './components/InfoPanel';
 import EmotionalPaletteExport from './components/exports/EmotionalPaletteExport';
@@ -253,6 +254,9 @@ export default function App() {
               </button>
             )}
           </div>
+
+          {/* Hex colour → nearest emotion/blend */}
+          <ColorPicker onSelect={handleSelect} />
 
           {/* Curated selection set — feeds the Palette/Mapping/Table deck
               views, which each require 2–8 of these. */}
