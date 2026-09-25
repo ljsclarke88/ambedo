@@ -10,13 +10,9 @@ interface DownloadBarProps {
   // rows (Multisensory Map, Emotional Mapping, Emotional Palette cards) —
   // the default styling disappears against a white background otherwise.
   theme?: 'dark' | 'light';
-  // When the caller already knows targetRef's exact intended CSS size,
-  // pass it here so html-to-image renders at that size instead of
-  // auto-detecting it — see the note in exportImage.ts.
-  size?: { width: number; height: number };
 }
 
-export default function DownloadBar({ targetRef, filename, label, theme = 'dark', size }: DownloadBarProps) {
+export default function DownloadBar({ targetRef, filename, label, theme = 'dark' }: DownloadBarProps) {
   const [busy, setBusy] = useState<'png' | 'jpeg' | null>(null);
   const isLight = theme === 'light';
 
@@ -24,7 +20,7 @@ export default function DownloadBar({ targetRef, filename, label, theme = 'dark'
     if (!targetRef.current || busy) return;
     setBusy(format);
     try {
-      await downloadNodeAsImage(targetRef.current, filename, format, size);
+      await downloadNodeAsImage(targetRef.current, filename, format);
     } finally {
       setBusy(null);
     }
