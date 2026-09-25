@@ -48,17 +48,114 @@ function toXY(angleDeg: number, radiusNorm: number): [number, number] {
   return [CX + Math.cos(rad) * radiusNorm * MAX_R, CY + Math.sin(rad) * radiusNorm * MAX_R];
 }
 
+// Pure HTML/CSS chart primitives — no SVG. The radar chart used to be an
+// <svg> nested inside the HTML row that html-to-image wraps in its own
+// <svg><foreignObject> for capture; that SVG-inside-foreignObject-inside-SVG
+// nesting survived six different fixes aimed at the surrounding HTML layout
+// (flexbox, explicit sizing, a full flex-to-absolute-positioning rewrite),
+// which means the nesting itself — not the layout technique — was always
+// the actual cause of the chart rendering at the wrong scale and clipping.
+// Rebuilding the rings/bubbles as plain positioned divs removes the nested
+// SVG entirely.
+function Ring({ r }: { r: number }) {
+  const d = r * MAX_R * 2;
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        left: `${CX - r * MAX_R}px`,
+        top: `${CY - r * MAX_R}px`,
+        width: `${d}px`,
+        height: `${d}px`,
+        borderRadius: '50%',
+        border: `1px solid ${INK_LINE}`,
+        boxSizing: 'border-box',
+      }}
+    />
+  );
+}
+
 function ChartRings() {
-  const rings = [0.33, 0.66, 1];
   return (
     <>
-      {rings.map((r) => (
-        <circle key={r} cx={CX} cy={CY} r={r * MAX_R} fill="none" stroke={INK_LINE} strokeWidth={1} />
+      {[0.33, 0.66, 1].map((r) => (
+        <Ring key={r} r={r} />
       ))}
-      <line x1={CX} y1={CY - MAX_R} x2={CX} y2={CY + MAX_R} stroke={INK_LINE_FAINT} />
-      <line x1={CX - MAX_R} y1={CY} x2={CX + MAX_R} y2={CY} stroke={INK_LINE_FAINT} />
-      <circle cx={CX} cy={CY} r={3} fill={INK_MED} />
+      <div style={{ position: 'absolute', left: `${CX}px`, top: `${CY - MAX_R}px`, width: '1px', height: `${MAX_R * 2}px`, background: INK_LINE_FAINT }} />
+      <div style={{ position: 'absolute', left: `${CX - MAX_R}px`, top: `${CY}px`, width: `${MAX_R * 2}px`, height: '1px', background: INK_LINE_FAINT }} />
+      <div style={{ position: 'absolute', left: `${CX - 3}px`, top: `${CY - 3}px`, width: '6px', height: '6px', borderRadius: '50%', background: INK_MED }} />
     </>
+  );
+}
+
+// A single data-point circle — a div, not an SVG <circle>.
+function Bubble({
+  x,
+  y,
+  r,
+  fill,
+  stroke,
+  strokeWidth = 0,
+  dashed = false,
+  opacity = 1,
+}: {
+  x: number;
+  y: number;
+  r: number;
+  fill: string;
+  stroke?: string;
+  strokeWidth?: number;
+  dashed?: boolean;
+  opacity?: number;
+}) {
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        left: `${x - r}px`,
+        top: `${y - r}px`,
+        width: `${r * 2}px`,
+        height: `${r * 2}px`,
+        borderRadius: '50%',
+        background: fill,
+        border: strokeWidth ? `${strokeWidth}px ${dashed ? 'dashed' : 'solid'} ${stroke}` : undefined,
+        opacity,
+        boxSizing: 'border-box',
+      }}
+    />
+  );
+}
+
+// A label centred under/above a chart point — a fixed-width div with
+// text-align:center rather than an SVG <text textAnchor="middle">, and no
+// CSS transform (kept out of this capture path entirely, on the same
+// belt-and-braces reasoning as the nested-SVG removal above).
+function ChartLabel({
+  x,
+  y,
+  children,
+  style,
+}: {
+  x: number;
+  y: number;
+  children: React.ReactNode;
+  style: React.CSSProperties;
+}) {
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        left: `${x - 90}px`,
+        top: `${y}px`,
+        width: '180px',
+        textAlign: 'center',
+        whiteSpace: 'nowrap',
+        overflow: 'visible',
+        ...style,
+      }}
+    >
+      {children}
+    </div>
   );
 }
 
@@ -152,43 +249,30 @@ const OverviewChart = React.forwardRef<
       </div>
 
       <div style={{ position: 'absolute', left: `${CHART_COL_X}px`, top: `${ROW_PADDING}px`, width: `${SIZE}px`, height: `${SIZE}px` }}>
-        <svg viewBox={`0 0 ${SIZE} ${SIZE}`} width={SIZE} height={SIZE}>
+        <div style={{ position: 'relative', width: `${SIZE}px`, height: `${SIZE}px` }}>
           <ChartRings />
           {/* Minor bubbles first, so choice bubbles + labels always sit on top */}
           {points.filter((p) => !p.isChoice).map((p, i) => {
             const [x, y] = toXY(p.angleDeg, p.radiusNorm);
-            return (
-              <circle
-                key={`minor-${p.selectionId}-${i}`}
-                cx={x}
-                cy={y}
-                r={4}
-                fill={`hsl(${p.hue}, 55%, 45%)`}
-                opacity={0.45}
-              />
-            );
+            return <Bubble key={`minor-${p.selectionId}-${i}`} x={x} y={y} r={4} fill={`hsl(${p.hue}, 55%, 45%)`} opacity={0.45} />;
           })}
           {points.filter((p) => p.isChoice).map((p) => {
             const [x, y] = toXY(p.angleDeg, p.radiusNorm);
             const r = 14 + (p.weightPct ?? 0) * 0.22;
             return (
-              <g key={`choice-${p.selectionId}`}>
-                <circle cx={x} cy={y} r={r} fill={`hsl(${p.hue}, 65%, 45%)`} stroke={`hsl(${p.hue}, 75%, 32%)`} strokeWidth={1.5} opacity={0.92} />
-                <text
+              <React.Fragment key={`choice-${p.selectionId}`}>
+                <Bubble x={x} y={y} r={r} fill={`hsl(${p.hue}, 65%, 45%)`} stroke={`hsl(${p.hue}, 75%, 32%)`} strokeWidth={1.5} opacity={0.92} />
+                <ChartLabel
                   x={x}
-                  y={y - r - 8}
-                  textAnchor="middle"
-                  fontFamily="'Cormorant Garamond', serif"
-                  fontStyle="italic"
-                  fontSize={15}
-                  fill={INK_STRONG}
+                  y={y - r - 26}
+                  style={{ fontFamily: "'Cormorant Garamond', serif", fontStyle: 'italic', fontSize: '15px', color: INK_STRONG }}
                 >
                   {p.label}
-                </text>
-              </g>
+                </ChartLabel>
+              </React.Fragment>
             );
           })}
-        </svg>
+        </div>
       </div>
     </div>
   );
@@ -292,7 +376,7 @@ const SelectionChart = React.forwardRef<HTMLDivElement, { points: RadarPoint[] }
       </div>
 
       <div style={{ position: 'absolute', left: `${CHART_COL_X}px`, top: `${ROW_PADDING}px`, width: `${SIZE}px`, height: `${SIZE + LEGEND_HEIGHT}px` }}>
-        <svg viewBox={`0 0 ${SIZE} ${SIZE}`} width={SIZE} height={SIZE} style={{ display: 'block' }}>
+        <div style={{ position: 'relative', width: `${SIZE}px`, height: `${SIZE}px` }}>
           <ChartRings />
           {points.map((p) => {
             const [x, y] = toXY(p.angleDeg, p.radiusNorm);
@@ -301,45 +385,33 @@ const SelectionChart = React.forwardRef<HTMLDivElement, { points: RadarPoint[] }
             const fill = isComp ? `hsl(${p.hue}, 65%, 45%)` : 'rgba(20,18,16,0.05)';
             const stroke = isComp ? `hsl(${p.hue}, 75%, 32%)` : 'rgba(20,18,16,0.4)';
             return (
-              <g key={p.label + p.kind}>
-                <circle
-                  cx={x}
-                  cy={y}
-                  r={r}
-                  fill={fill}
-                  stroke={stroke}
-                  strokeWidth={isComp ? 0 : 1}
-                  strokeDasharray={isComp ? undefined : '2,2'}
-                  opacity={isComp ? 0.92 : 0.85}
-                />
-                <text
+              <React.Fragment key={p.label + p.kind}>
+                <Bubble x={x} y={y} r={r} fill={fill} stroke={stroke} strokeWidth={isComp ? 0 : 1} dashed={!isComp} opacity={isComp ? 0.92 : 0.85} />
+                <ChartLabel
                   x={x}
-                  y={y - r - 8}
-                  textAnchor="middle"
-                  fontFamily="'Cormorant Garamond', serif"
-                  fontStyle="italic"
-                  fontSize={isComp ? 15 : 12}
-                  fill={isComp ? INK_STRONG : INK_MED}
+                  y={y - r - 26}
+                  style={{
+                    fontFamily: "'Cormorant Garamond', serif",
+                    fontStyle: 'italic',
+                    fontSize: isComp ? '15px' : '12px',
+                    color: isComp ? INK_STRONG : INK_MED,
+                  }}
                 >
                   {p.label}
-                </text>
+                </ChartLabel>
                 {p.weightPct !== null && (
-                  <text
+                  <ChartLabel
                     x={x}
-                    y={y + r + 14}
-                    textAnchor="middle"
-                    fontFamily="'Inter', sans-serif"
-                    fontSize={9}
-                    letterSpacing="0.05em"
-                    fill={INK_FAINT}
+                    y={y + r + 8}
+                    style={{ fontFamily: "'Inter', sans-serif", fontSize: '9px', letterSpacing: '0.05em', color: INK_FAINT }}
                   >
                     {p.weightPct}%
-                  </text>
+                  </ChartLabel>
                 )}
-              </g>
+              </React.Fragment>
             );
           })}
-        </svg>
+        </div>
 
         <div
           style={{
