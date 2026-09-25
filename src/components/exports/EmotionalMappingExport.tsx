@@ -460,7 +460,6 @@ function SelectionMappingRow({ index, selection }: { index: number; selection: S
         targetRef={ref}
         filename={`emotional-mapping-${index + 1}-${selection.variant.label.toLowerCase()}`}
         theme="light"
-        size={{ width: ROW_WIDTH, height: SELECTION_ROW_HEIGHT }}
       />
     </div>
   );
@@ -480,7 +479,6 @@ function OverviewSection({ selections }: { selections: SelectionEntry[] }) {
         filename="emotional-mapping-overview"
         label="Overview"
         theme="light"
-        size={{ width: ROW_WIDTH, height: OVERVIEW_ROW_HEIGHT }}
       />
     </div>
   );
@@ -500,7 +498,6 @@ export default function EmotionalMappingExport({ selections }: EmotionalMappingE
           targetRef={ref}
           filename="emotional-mapping"
           label="Emotional Mapping"
-          size={{ width: ROW_WIDTH, height: SELECTION_ROW_HEIGHT }}
         />
       </div>
     );
