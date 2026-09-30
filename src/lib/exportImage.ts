@@ -30,9 +30,17 @@ export async function downloadNodeAsImage(
   // any transparent pixel (mainly rounded-corner anti-aliasing fringe, since
   // every export already paints its own full-bleed background). Every
   // export tab is white/cream, so '#ffffff' is the correct fallback.
+  //
+  // pixelRatio MUST be pinned to 1 explicitly — left unset, html-to-image
+  // defaults it to the browser's real devicePixelRatio (2 on any Retina
+  // display), which silently reintroduces the canvas-upscale draw this
+  // whole rewrite exists to avoid. Every test that "proved" 1:1 capture
+  // reliable ran through a simulated 1x display and never exercised this
+  // default, which is how it slipped back in.
   const options = {
     backgroundColor: format === 'jpeg' ? '#ffffff' : undefined,
     cacheBust: true,
+    pixelRatio: 1,
   };
 
   const dataUrl =

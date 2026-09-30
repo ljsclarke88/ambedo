@@ -6,10 +6,35 @@ interface EmotionalMappingExportProps {
   selections: SelectionEntry[];
 }
 
-const SIZE = 440;
+// The chart box needs more clearance around the MAX_R ring than just its
+// own radius: every labelled point draws a 180px-wide, centre-anchored
+// ChartLabel next to it (half-width 90px either side), so a point sitting
+// right at the ring's edge needs ~90px of margin beyond MAX_R before its
+// label's own edge reaches the box boundary — otherwise a selection whose
+// emotion happens to land near the wheel's east/west extreme (routine once
+// an overview is plotting several selections across the full 360°, since
+// each one's angle is whatever the user picked, not chosen to avoid this)
+// gets its label clipped by the row's own declared width.
+//
+// 200px is bigger than that ~90px margin math alone calls for. The extra
+// headroom is there for a second, unrelated reason found by direct
+// measurement: html-to-image's raster step (SVG data URI -> <img> ->
+// canvas) renders this content's absolutely-positioned points *shifted*
+// from their true position — confirmed by cloning the exact node it
+// captures, re-attaching that clone to the live document, and finding its
+// real layout matches the source exactly, so the discrepancy isn't in our
+// CSS, it's in that raster step. The size of the shift shrank as this box
+// grew and, empirically, disappeared entirely once CX (MAX_R + this
+// margin) reached ~380 — below that threshold, points that should be well
+// within bounds capture partially off-canvas. 200px keeps CX comfortably
+// past that point. If this ever needs revisiting, re-measure rather than
+// assume — this is empirically-found headroom for a browser quirk, not a
+// value derived from first principles.
+const MAX_R = 180;
+const CHART_MARGIN = 200;
+const SIZE = (MAX_R + CHART_MARGIN) * 2;
 const CX = SIZE / 2;
 const CY = SIZE / 2;
-const MAX_R = 180;
 // Wide gap between the text column and the chart — pushes the downloaded
 // row's aspect ratio toward 16:9 (roughly matching the chart's own ~480px
 // height) rather than the much narrower ratio a tight gap produces.
